@@ -25,9 +25,42 @@ if exist package-lock.json (
 if errorlevel 1 goto :npmfail
 
 echo.
+echo  Checking the bundled converters...
+rem Newer npm versions may skip install scripts, so fetch the two downloads by hand if they are missing.
+if not exist "node_modules\ffmpeg-static\ffmpeg.exe" (
+  echo  Downloading ffmpeg...
+  node node_modules\ffmpeg-static\install.js
+)
+if not exist "node_modules\electron\dist\electron.exe" (
+  echo  Downloading Electron...
+  node node_modules\electron\install.js
+)
+if not exist "node_modules\ffmpeg-static\ffmpeg.exe" goto :ffmpegfail
+if not exist "node_modules\electron\dist\electron.exe" goto :electronfail
+node -e "require('uiohook-napi');require('koffi');console.log('  Input hook and Windows bridge: OK')"
+if errorlevel 1 goto :nativefail
+
+echo.
 echo  [2/3] Building the app...
 call npm run build
-if errorlevel 1 goto :buildfail
+if errorlevel 1 goto :ffmpegfail
+echo.
+echo  ffmpeg.exe could not be downloaded. Audio and video conversion needs it.
+echo  Check your internet connection or firewall, then run setup.bat again.
+goto :fail
+
+:electronfail
+echo.
+echo  Electron could not be downloaded. Check your internet connection, then run setup.bat again.
+goto :fail
+
+:nativefail
+echo.
+echo  The global input hook or the Windows bridge could not load. Convert cannot open its wheel without them.
+echo  Run diagnose.bat and send me the output.
+goto :fail
+
+:buildfail
 
 echo.
 echo  [3/3] Done.

@@ -6,6 +6,10 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to create
+        default: v1.0.0
 
 permissions:
   contents: write
@@ -30,8 +34,8 @@ jobs:
           name: Convert-Setup
           path: release/Convert-Setup-*.exe
       - name: Publish the release
-        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}
           files: release/Convert-Setup-*.exe
           generate_release_notes: true

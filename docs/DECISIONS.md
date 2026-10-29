@@ -55,8 +55,21 @@ The CSP adds `convert-file:` to `img-src` and `media-src` for the preview protoc
 
 The reference shows Copy as "copy files to the clipboard" and Move as "choose a folder and move". Copy now puts the files on the clipboard (PowerShell `Set-Clipboard`, paths passed on stdin). The original folder copy is a seventh wedge, **Copy to**. AirDrop is macOS only and has no Windows equivalent, so it is omitted (docs/01 already excludes Share). Apple Pages is omitted as a format for the same reason.
 
+## DEVIATION-13: Results sit beside the original, with no new folder
+
+- **What:** `docs/05` section 6 put PDF pages in a new folder `name\`. Jobs that make several files (PDF to images, slides to images, Split, Extract here) now save them directly in the original's folder, with the same never-overwrite numbering: `doc-001 (1).png`. The "Converted" subfolder option stays, off by default, and a custom output folder still works.
+- **Why:** the owner asked that new files appear exactly where the original is.
+- **Evidence:** a test renders a PDF and asserts every page file is in the PDF's own folder and no folder was created; another asserts a second run numbers every file.
+- **Also:** the toast now names the folder ("Saved in D:\\Photos", "12 files saved in D:\\Docs"), "Show in folder" opens that folder with the first result selected, and Undo removes every file the job made.
+- **Trade-off:** Extract here no longer wraps an archive's contents in a folder, so a large archive can scatter many files into a busy folder. Undo removes them within 12 seconds.
+
+## DEVIATION-14: Wheel look and the cursor loader
+
+The wheel was redrawn to match the reference photo: a full circle with a rim, rounded pie sections (true tangent fillets, tested), and a capsule in the centre that shows the dragged file's extension, then the hovered target's. A small click-through progress ring follows the pointer while a job runs longer than 0.6 s (Settings, Output turns it off). Both are visual additions to `docs/01`.
+
 ## Smaller gaps filled (not in the specs)
 
+- `setup.bat` runs `scripts/check-env.cjs` first, prints what is installed, and installs only what is missing (packages, the ffmpeg and Electron downloads, the build). `diagnose.bat` prints the same table.
 - `Esc` in ARMED or DRAGGING returns to IDLE, so a cancelled drag cannot leave the state machine stuck.
 - Wedge 0 starts at the 12 o'clock edge and runs clockwise.
 - Split needs exactly one PDF; Merge needs two or more. Collage needs two or more images; single-image tools need one.

@@ -25,6 +25,7 @@ import { TriggerEngine } from './trigger/hooks';
 import { FloatShelf } from './windows/float-shelf';
 import { WindowRegistry } from './windows/registry';
 import { SettingsWindow } from './windows/settings-window';
+import { CursorLoader } from './windows/cursor-loader';
 import { ToastWindow } from './windows/toast-window';
 import { ToolWindowManager } from './windows/toolwin';
 
@@ -68,6 +69,8 @@ async function main(): Promise<void> {
 
   const toastWindow = new ToastWindow(() => settings.get(), registry);
   const toasts = new ToastManager(toastWindow, () => settings.get(), queue);
+  const loader = new CursorLoader(registry, () => settings.get());
+  queue.on('update', (snap) => loader.update(snap));
   const settingsWindow = new SettingsWindow(registry, () => settings.get(), prefersDark);
   const toolwin = new ToolWindowManager(registry, () => settings.get(), prefersDark);
   const float = new FloatShelf(
@@ -246,6 +249,7 @@ async function main(): Promise<void> {
     toolwin.closeAll();
     overlay.destroy();
     toastWindow.destroy();
+    loader.destroy();
     float.destroy();
     tray.destroy();
     void shutdownExiftool();

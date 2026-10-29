@@ -3,10 +3,10 @@ import { randomUUID } from 'node:crypto';
 import { cpus } from 'node:os';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
-import { link, lstat, mkdir, rename, rm, unlink } from 'node:fs/promises';
+import { link, lstat, mkdir, readdir, rename, rm, unlink } from 'node:fs/promises';
 import type { Settings } from '../settings/schema';
 import { logger } from '../services/log';
-import { NamingError, resolveOutput, resolveOutputDir } from './naming';
+import { NamingError, resolveOutput, resolveOutputDir, uniqueSibling } from './naming';
 import { isMultiInput, planOutput, selectEngine } from './operations';
 import {
   JobError,
@@ -33,6 +33,10 @@ export interface JobSnapshot {
   percent: number;
   stalled: boolean;
   outputName?: string;
+  /** Folder the result is in, which is the original's folder unless a custom folder is set. */
+  outputDir?: string;
+  /** How many files or folders were created. */
+  outputCount?: number;
   note?: 'already-compact';
   error?: { code: ErrorCode; message: string };
   undoable: boolean;
@@ -49,7 +53,7 @@ interface Job {
   stalled: boolean;
   controller: AbortController;
   output?: string;
-  outputIsDir?: boolean;
+  outputs?: string[];
   note?: 'already-compact';
   error?: { code: ErrorCode; message: string };
   finishedAt?: number;
@@ -143,22 +147,26 @@ export class JobQueue extends EventEmitter {
     if (job.status === 'running') job.controller.abort();
   }
 
-  /** Deletes the job's output, never its source. Allowed for a short window after completion. */
+  /** Deletes what the job created, never its source. Allowed for a short window after completion. */
   async undo(jobId: string): Promise<boolean> {
     const job = this.jobs.get(jobId);
-    if (!job || job.status !== 'ok' || !job.output) return false;
+    const created = job?.outputs ?? [];
+    if (!job || job.status !== 'ok' || created.length === 0) return false;
     if (Date.now() - (job.finishedAt ?? 0) > UNDO_WINDOW_MS) return false;
-    const target = path.resolve(job.output);
-    const isSource = job.allInputs.some((p) => {
-      const src = path.resolve(p);
-      return src === target || src.startsWith(target + path.sep);
+    const overlapsSource = created.some((output) => {
+      const target = path.resolve(output);
+      return job.allInputs.some((p) => {
+        const src = path.resolve(p);
+        return src === target || src.startsWith(target + path.sep);
+      });
     });
-    if (isSource) {
-      log.error('refusing to undo: output overlaps a source', { jobId });
+    if (overlapsSource) {
+      log.error('refusing to undo: an output overlaps a source', { jobId });
       return false;
     }
-    await rm(job.output, { recursive: job.outputIsDir === true, force: true });
+    for (const output of created) await rm(output, { recursive: true, force: true });
     job.output = undefined;
+    job.outputs = undefined;
     this.publish(job);
     return true;
   }
@@ -182,6 +190,7 @@ export class JobQueue extends EventEmitter {
       batchId: j.batchId,
       input: j.input,
       output: j.output,
+      outputs: j.outputs,
       status: j.status,
       note: j.note,
       error: j.error,
@@ -228,11 +237,14 @@ export class JobQueue extends EventEmitter {
       await mkdir(parent, { recursive: true });
       tempDir = path.join(parent, `~convert-${job.id.slice(0, 8)}`);
       await mkdir(tempDir, { recursive: true });
+      const outDir = path.join(tempDir, 'out');
+      await mkdir(outDir, { recursive: true });
       const tempPath = path.join(tempDir, `out.${plan.type === 'file' ? plan.ext : 'tmp'}`);
 
       const result = await engine.run(job.op, job.input, {
         tempPath,
         tempDir,
+        outDir,
         signal: job.controller.signal,
         onProgress: (pct) => {
           job.percent = Math.max(job.percent, Math.min(99, pct));
@@ -250,13 +262,13 @@ export class JobQueue extends EventEmitter {
         return this.finish(job, 'ok');
       }
       if (plan.type === 'dir') {
-        await moveNoClobber(tempDir, finalPath, true, this.exists);
-        tempDir = null;
+        // Several files: they go straight into the original's folder, not into a new folder.
+        job.outputs = await this.scatter(outDir, parent);
       } else {
         await moveNoClobber(tempPath, finalPath, false, this.exists);
+        job.outputs = [finalPath];
       }
-      job.output = finalPath;
-      job.outputIsDir = plan.type === 'dir';
+      job.output = job.outputs[0];
       job.percent = 100;
       if (settings.output.recycleOriginal) {
         await this.deps
@@ -279,6 +291,27 @@ export class JobQueue extends EventEmitter {
       clearTimeout(job.stallTimer);
       if (tempDir) await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
     }
+  }
+
+  /** Moves every result into the target folder under a name that does not exist yet, removing partial work on failure. */
+  private async scatter(outDir: string, targetDir: string): Promise<string[]> {
+    const names = (await readdir(outDir)).filter((n) => !n.startsWith('.')).sort();
+    if (names.length === 0) throw new JobError('E_UNKNOWN', 'the converter produced no files');
+    const created: string[] = [];
+    try {
+      for (const name of names) {
+        const from = path.join(outDir, name);
+        const isDir = (await lstat(from)).isDirectory();
+        const dest = uniqueSibling(path.join(targetDir, name), this.exists, path);
+        await moveNoClobber(from, dest, isDir, this.exists);
+        created.push(dest);
+      }
+    } catch (error) {
+      for (const done of created)
+        await rm(done, { recursive: true, force: true }).catch(() => undefined);
+      throw error;
+    }
+    return created;
   }
 
   private finish(job: Job, status: 'ok' | 'error' | 'cancelled'): void {
@@ -305,9 +338,11 @@ export class JobQueue extends EventEmitter {
       percent: job.percent,
       stalled: job.stalled,
       outputName: job.output ? path.basename(job.output) : undefined,
+      outputDir: job.output ? path.dirname(job.output) : undefined,
+      outputCount: job.outputs?.length,
       note: job.note,
       error: job.error,
-      undoable: job.status === 'ok' && job.output !== undefined,
+      undoable: job.status === 'ok' && (job.outputs?.length ?? 0) > 0,
     };
   }
 }

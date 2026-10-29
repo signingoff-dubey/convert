@@ -3,7 +3,7 @@ import { BrowserWindow, shell, type BrowserWindowConstructorOptions } from 'elec
 import type { Settings } from '../settings/schema';
 import { resolveTheme, THEMES } from '../../renderer/theme/themes';
 
-export type PageName = 'overlay' | 'settings' | 'toast' | 'toolwin' | 'float';
+export type PageName = 'overlay' | 'settings' | 'toast' | 'toolwin' | 'float' | 'loader';
 
 const CSP =
   "default-src 'self'; img-src 'self' data: convert-file:; style-src 'self' 'unsafe-inline'; media-src convert-file:; connect-src 'none'";

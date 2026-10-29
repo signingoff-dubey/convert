@@ -202,7 +202,7 @@ export async function renderPages(
       await page.render({ canvasContext: context, canvas, viewport }).promise;
       const buffer =
         ext === 'png' ? canvas.toBuffer('image/png') : canvas.toBuffer('image/jpeg', 90);
-      await writeFile(join(ctx.tempDir, pageFileName(base, n, ext, doc.numPages)), buffer);
+      await writeFile(join(ctx.outDir, pageFileName(base, n, ext, doc.numPages)), buffer);
       page.cleanup();
       ctx.onProgress(Math.round((n / doc.numPages) * 100));
     }
@@ -303,7 +303,7 @@ async function split(input: string, op: Operation, ctx: RunContext): Promise<voi
     if (ctx.signal.aborted) throw new JobError('E_CANCELLED');
     const out = await PDFDocument.create();
     for (const page of await out.copyPages(src, group)) out.addPage(page);
-    await writeFile(join(ctx.tempDir, `${base}-${rangeLabel(group)}.pdf`), await out.save());
+    await writeFile(join(ctx.outDir, `${base}-${rangeLabel(group)}.pdf`), await out.save());
     ctx.onProgress(Math.round(((i + 1) / groups.length) * 100));
   }
 }

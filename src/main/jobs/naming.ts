@@ -98,6 +98,19 @@ export function resolveOutputDir(
   }
 }
 
+/** `name (1).ext`, `name (2).ext`, ... for a path that must not collide with anything that already exists. */
+export function uniqueSibling(
+  dest: string,
+  existsFn: (path: string) => boolean,
+  api: PlatformPath = win32,
+): string {
+  const { dir, name, ext } = api.parse(dest);
+  for (let n = 0; ; n++) {
+    const candidate = n === 0 ? dest : api.join(dir, `${name} (${n})${ext}`);
+    if (!existsFn(finalize(candidate, api))) return finalize(candidate, api);
+  }
+}
+
 /** `name-001.png` style page file names. */
 export function pageFileName(base: string, page: number, ext: string, pages: number): string {
   const width = Math.max(3, String(pages).length);

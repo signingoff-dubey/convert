@@ -6,7 +6,7 @@ import { invoke, on, pathForFile } from '../shared/api';
 import { useSettings } from '../shared/store';
 import '../theme/tokens.css';
 import { hitTest } from './hit-test';
-import { buildWheel, itemsFromMimeTypes } from './wedges';
+import { buildWheel, itemsFromMimeTypes, sourceLabel } from './wedges';
 
 interface OpenPayload {
   wheelId: WheelId;
@@ -149,7 +149,9 @@ function App() {
             diameter={open.diameter}
             style={settings.appearance.wheelStyle}
             opacity={settings.appearance.wheelOpacity}
-            title={notice ?? model.title}
+            title={
+              notice ?? (mimes ? sourceLabel(itemsFromMimeTypes(mimes)) : undefined) ?? model.title
+            }
             hint={notice ? undefined : model.hint}
             disabled={model.disabled}
           />

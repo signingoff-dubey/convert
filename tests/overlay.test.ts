@@ -84,7 +84,8 @@ describe('hitTest', () => {
 });
 
 import { vi } from 'vitest';
-vi.mock('lucide-react', () => ({}));
+// The icon table pulls in the icon library; the wedge logic does not need real icons.
+vi.mock('../src/renderer/components/icons', () => ({ WEDGE_ICONS: {} }));
 
 describe('labelSize', async () => {
   const { labelSize } = await import('../src/renderer/components/Wheel');
@@ -96,5 +97,20 @@ describe('labelSize', async () => {
   });
   it('never exceeds the natural size', () => {
     expect(labelSize('A', 340, 3)).toBeLessThanOrEqual(12);
+  });
+});
+
+describe('sourceLabel', async () => {
+  const { sourceLabel } = await import('../src/renderer/overlay/wedges');
+  const item = (path: string, isDirectory = false) => ({ path, isDirectory });
+  it("shows the dragged file's own extension in capitals", () => {
+    expect(sourceLabel([item('sample.wav')])).toBe('WAV');
+    expect(sourceLabel([item('a.jpeg'), item('b.jpg')])).toBe('JPG');
+  });
+  it('counts a mixed selection, names a folder, and stays silent when the type is unknown', () => {
+    expect(sourceLabel([item('a.png'), item('b.mp3')])).toBe('2 FILES');
+    expect(sourceLabel([item('dir', true)])).toBe('FOLDER');
+    expect(sourceLabel([item('item0')])).toBeUndefined();
+    expect(sourceLabel([])).toBeUndefined();
   });
 });

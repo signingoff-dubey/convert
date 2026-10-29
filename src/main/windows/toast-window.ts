@@ -86,10 +86,20 @@ export function buildToast(batch: JobSnapshot[], seconds: number): ToastModel {
       : n === 1
         ? STRINGS.toast.toolDone(label, first.inputName)
         : STRINGS.toast.toolDoneMany(label, n);
+  // Say exactly where the result is: the original's own folder, unless a custom folder was chosen.
+  const folder = ok.find((j) => j.outputDir)?.outputDir;
+  const files = ok.reduce((sum, j) => sum + (j.outputCount ?? 0), 0);
+  const detail =
+    compact || !folder
+      ? undefined
+      : files > 1
+        ? STRINGS.toast.savedManyIn(files, folder)
+        : STRINGS.toast.savedIn(folder);
   return {
     ...base,
     kind: 'success',
     title,
+    detail,
     canCancel: false,
     canUndo: !compact && ok.every((j) => j.undoable),
     canReveal: !compact,

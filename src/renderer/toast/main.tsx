@@ -16,8 +16,10 @@ function ToastCard({ t }: { t: ToastModel }) {
     ) : (
       <Check size={18} className="text-success" />
     );
-  const act = (channel: 'job:cancel' | 'job:undo' | 'job:reveal') => () =>
+  const act = (channel: 'job:cancel' | 'job:undo') => () =>
     void Promise.all(t.jobIds.map((jobId) => invoke(channel, { jobId })));
+  // One Explorer window with the first result selected, not one per file in the batch.
+  const reveal = () => void invoke('job:reveal', { jobId: t.jobIds[0] as string });
   return (
     <div
       className="mb-2 rounded-xl border border-line bg-surface p-3 shadow-xl"
@@ -52,7 +54,7 @@ function ToastCard({ t }: { t: ToastModel }) {
             {t.canReveal && (
               <button
                 className="inline-flex items-center gap-1 text-accent hover:underline"
-                onClick={act('job:reveal')}
+                onClick={reveal}
               >
                 <FolderOpen size={12} /> {STRINGS.toast.showInFolder}
               </button>

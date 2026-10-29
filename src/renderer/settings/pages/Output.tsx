@@ -136,6 +136,16 @@ export function Output() {
             onChange={(v) => void save({ output: { toastSeconds: v } })}
           />
         </SettingRow>
+        <SettingRow
+          label="Progress ring at the pointer"
+          description="A small ring with the percentage follows your pointer while a job that takes more than a moment runs."
+        >
+          <Switch
+            label="Progress ring at the pointer"
+            checked={o.cursorLoader}
+            onChange={(v) => void save({ output: { cursorLoader: v } })}
+          />
+        </SettingRow>
         <SettingRow label="Terminal" description="Used by the Terminal file action.">
           <SegmentedControl
             label="Terminal"

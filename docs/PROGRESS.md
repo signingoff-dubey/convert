@@ -7,7 +7,7 @@ Honest status: what exists, what was verified and how, and what still needs a Wi
 | Check | How |
 |---|---|
 | Types, lint, formatting | `tsc --noEmit` (strict), ESLint (no `any`), Prettier: all clean |
-| 255 unit and golden-file tests | `npm test`: state machine, key combos, conflicts, naming, drop-path validation, settings recovery, formats, wedge preferences, layout maths, crop dragging, annotation drawing, toast text, float docking, dispatch, actions, EPUB, RTF, offline OCR, and real conversions |
+| 285 unit and golden-file tests | `npm test`: state machine, key combos, conflicts, naming, drop-path validation, settings recovery, formats, wedge preferences, layout maths, crop dragging, annotation drawing, toast text, float docking, dispatch, actions, EPUB, RTF, offline OCR, and real conversions |
 | Real conversions | images (every target), audio, video (progress, cancel), PDF (render, text, split, merge, EPUB, XLSX), documents, spreadsheets, subtitles, archives, plus Crop, Edit, Add BG, Collage, Redact, Annotate, Metadata, combined PDF |
 | Source file untouched | every conversion test hashes the source before and after |
 | No temp files left | cancel and corrupt-input tests check the output folder |

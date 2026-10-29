@@ -1,5 +1,6 @@
 import {
   actionsFor,
+  extensionOf,
   itemsFromMimeTypes,
   targetsFor,
   toolsFor,
@@ -101,6 +102,20 @@ export function buildWheel(
     wedges: applyWheelPrefs(base, prefs.order[key], prefs.disabled[key]),
     category: result.category,
   };
+}
+
+/**
+ * What the centre capsule shows before anything is hovered: the dragged file's own extension (WAV), a count
+ * when the selection is mixed, or nothing when the type is unknown.
+ */
+export function sourceLabel(items: readonly InputItem[]): string | undefined {
+  if (items.length === 0) return undefined;
+  const exts = items.map((i) => (i.isDirectory ? 'folder' : extensionOf(i.path)));
+  const first = exts[0] as string;
+  if (exts.every((e) => e === first)) {
+    return first === '' ? undefined : first === 'folder' ? 'FOLDER' : first.toUpperCase();
+  }
+  return `${items.length} FILES`;
 }
 
 export { itemsFromMimeTypes };

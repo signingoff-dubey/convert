@@ -172,6 +172,11 @@ export const EVENTS = {
     tool: ToolWindowName,
     paths: z.array(Path),
   }),
+  'loader:update': z.object({
+    percent: z.number().min(0).max(100),
+    indeterminate: z.boolean(),
+    count: z.number(),
+  }),
   'float:changed': z.array(z.object({ path: Path, name: z.string() })),
 } as const;
 

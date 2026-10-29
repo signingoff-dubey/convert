@@ -1,5 +1,5 @@
 /** Which channels and events each window may use. Kept free of heavy imports: the preload bundles it. */
-export type PageName = 'overlay' | 'settings' | 'toast' | 'toolwin' | 'float';
+export type PageName = 'overlay' | 'settings' | 'toast' | 'toolwin' | 'float' | 'loader';
 
 /** Which channels and events each window may use. Enforced in the preload and again in main. */
 export const WINDOW_ACCESS: Record<PageName, { invoke: readonly string[]; on: readonly string[] }> =
@@ -61,6 +61,10 @@ export const WINDOW_ACCESS: Record<PageName, { invoke: readonly string[]; on: re
         'annotate:save',
       ],
       on: ['toolwin:init', 'settings:changed'],
+    },
+    loader: {
+      invoke: ['settings:get'],
+      on: ['loader:update', 'settings:changed'],
     },
     float: {
       invoke: [

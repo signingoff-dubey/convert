@@ -39,6 +39,11 @@ export interface RunContext {
   tempPath: string;
   /** For dir outputs: a fresh temporary directory in the output folder. */
   tempDir: string;
+  /**
+   * For multi-file results (page images, split PDFs, extracted archives): write them here. They are moved
+   * straight into the original's folder afterwards, never into a new folder.
+   */
+  outDir: string;
   signal: AbortSignal;
   onProgress(percent: number): void;
   settings: Settings;
@@ -65,6 +70,8 @@ export interface JobResult {
   batchId: string;
   input: string;
   output?: string;
+  /** Every file or folder a job created, in the original's folder. `output` is the first. */
+  outputs?: string[];
   status: Exclude<JobStatus, 'queued' | 'running'>;
   note?: 'already-compact';
   error?: { code: ErrorCode; message: string };

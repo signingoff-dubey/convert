@@ -13,7 +13,7 @@ You need [Node.js](https://nodejs.org) 20 or newer (the LTS version is fine). Th
 
 | File | What it does |
 |---|---|
-| `setup.bat` | **Run this first.** Installs everything and builds the app. Needs internet once. |
+| `setup.bat` | **Run this first.** Shows what is already installed, then installs and builds only what is missing. Needs internet when something has to be installed. |
 | `start.bat` | Starts Convert. It lives in the system tray. |
 | `package.bat` | Builds an installer, `release\Convert-Setup-1.0.0.exe`. Per-user, no administrator rights. |
 | `portable.bat` | Builds a folder you can copy anywhere, `release\win-unpacked\Convert.exe`. |
@@ -32,7 +32,7 @@ Convert has **no network code**. The internet is needed only by `setup.bat` and 
 3. A radial wheel opens under your cursor and stays open.
 4. You drop the file on a wedge. The job runs on your computer. A toast tells you when it is done.
 
-Your original is never changed. Results are saved beside it, and Convert never overwrites: a taken name becomes `name (1).ext`.
+Your original is never changed. Results are saved in the same folder as it, with no new folder, and Convert never overwrites: a taken name becomes `name (1).ext`. The toast says which folder, and "Show in folder" opens it with the result selected. A small progress ring follows your pointer while a longer job runs.
 
 ## The three wheels
 

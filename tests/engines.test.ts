@@ -10,7 +10,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -276,12 +276,20 @@ describe('audio and video', () => {
 });
 
 describe('pdf', () => {
-  it('renders every page to numbered PNGs in a new folder', async () => {
+  it('renders every page to numbered PNGs directly beside the PDF, in no new folder', async () => {
     const src = await makePdf('doc.pdf', ['one', 'two', 'three']);
-    const out = ok((await run('png', 'convert', [src]))[0] as JobResult);
-    expect(statSync(out).isDirectory()).toBe(true);
-    expect(readdirSync(out)).toEqual(['doc-001.png', 'doc-002.png', 'doc-003.png']);
-    const m = await sharp(join(out, 'doc-001.png')).metadata();
+    const r = (await run('png', 'convert', [src]))[0] as JobResult;
+    const first = ok(r);
+    expect(r.outputs?.map((o) => basename(o))).toEqual([
+      'doc-001.png',
+      'doc-002.png',
+      'doc-003.png',
+    ]);
+    for (const o of r.outputs ?? []) expect(dirname(o)).toBe(dirname(src));
+    expect(
+      readdirSync(dir).some((f) => statSync(join(dir, f)).isDirectory() && f.startsWith('doc')),
+    ).toBe(false);
+    const m = await sharp(first).metadata();
     expect(m.width).toBe(Math.ceil((300 * 300) / 72));
   }, 60_000);
 
@@ -296,11 +304,12 @@ describe('pdf', () => {
 
   it('splits by range, merges and compresses', async () => {
     const src = await makePdf('five.pdf', ['a', 'b', 'c', 'd', 'e']);
-    const out = ok((await run('split', 'tool', [src], { ranges: '1-2, 5' }))[0] as JobResult);
-    expect(readdirSync(out).sort()).toEqual(['five-p1-2.pdf', 'five-p5.pdf']);
-    expect((await PDFDocument.load(readFileSync(join(out, 'five-p1-2.pdf')))).getPageCount()).toBe(
-      2,
-    );
+    const split = (await run('split', 'tool', [src], { ranges: '1-2, 5' }))[0] as JobResult;
+    ok(split);
+    expect(split.outputs?.map((o) => basename(o)).sort()).toEqual(['five-p1-2.pdf', 'five-p5.pdf']);
+    for (const o of split.outputs ?? []) expect(dirname(o)).toBe(dirname(src));
+    const twoPage = (split.outputs ?? []).find((o) => o.endsWith('five-p1-2.pdf')) as string;
+    expect((await PDFDocument.load(readFileSync(twoPage))).getPageCount()).toBe(2);
     const other = await makePdf('two.pdf', ['x', 'y']);
     const merged = ok((await run('merge', 'tool', [src, other]))[0] as JobResult);
     expect(merged.endsWith('five-merged.pdf')).toBe(true);
@@ -398,15 +407,12 @@ describe('documents, sheets, subtitles, archives', () => {
     const tar = ok((await run('tar', 'convert', [zip]))[0] as JobResult);
     expect(statSync(tar).size).toBeGreaterThan(0);
     const gz = ok((await run('gz', 'convert', [zip]))[0] as JobResult);
-    const extracted = ok((await run('extract-here', 'convert', [gz]))[0] as JobResult);
-    expect(statSync(extracted).isDirectory()).toBe(true);
-    const files: string[] = [];
-    const walk = (d: string): void =>
-      readdirSync(d).forEach((f) =>
-        statSync(join(d, f)).isDirectory() ? walk(join(d, f)) : files.push(f),
-      );
-    walk(extracted);
-    expect(files.sort()).toContain('a.txt');
+    const extracted = (await run('extract-here', 'convert', [gz]))[0] as JobResult;
+    ok(extracted);
+    // The contents land next to the archive, with no wrapping folder; names that were taken get (1), (2).
+    const names = (extracted.outputs ?? []).map((o) => basename(o));
+    expect(names.some((n) => /^a( \(\d+\))?\.txt$/.test(n))).toBe(true);
+    for (const o of extracted.outputs ?? []) expect(dirname(o)).toBe(dirname(gz));
   }, 30_000);
 });
 
@@ -455,4 +461,42 @@ describe('queue behaviour', () => {
       'E_UNSUPPORTED',
     );
   });
+});
+
+describe('results sit beside the original', () => {
+  it('never overwrites: a second run numbers every page file', async () => {
+    const src = await makePdf('twice.pdf', ['a', 'b']);
+    const first = (await run('png', 'convert', [src]))[0] as JobResult;
+    const second = (await run('png', 'convert', [src]))[0] as JobResult;
+    expect(first.outputs?.map((o) => basename(o))).toEqual(['twice-001.png', 'twice-002.png']);
+    expect(second.outputs?.map((o) => basename(o))).toEqual([
+      'twice-001 (1).png',
+      'twice-002 (1).png',
+    ]);
+  }, 60_000);
+
+  it('undo removes every file the job created and nothing else', async () => {
+    const src = await makePdf('undone.pdf', ['a', 'b', 'c']);
+    const q = queue();
+    const { jobIds } = q.enqueue({ id: 'png', kind: 'convert' }, [src]);
+    await q.idle();
+    const outs = q.resultOf(jobIds[0] as string)?.outputs ?? [];
+    expect(outs).toHaveLength(3);
+    expect(await q.undo(jobIds[0] as string)).toBe(true);
+    for (const o of outs) expect(existsSync(o)).toBe(false);
+    expect(existsSync(src)).toBe(true);
+  }, 60_000);
+
+  it('reports the folder and the count for the toast, and leaves no scratch folder behind', async () => {
+    const src = await makePdf('counted.pdf', ['a', 'b']);
+    const q = queue();
+    const seen: { outputDir?: string; outputCount?: number }[] = [];
+    q.on('update', (snap: { status: string; outputDir?: string; outputCount?: number }) => {
+      if (snap.status === 'ok') seen.push(snap);
+    });
+    q.enqueue({ id: 'png', kind: 'convert' }, [src]);
+    await q.idle();
+    expect(seen.at(-1)).toMatchObject({ outputDir: dir, outputCount: 2 });
+    expect(readdirSync(dir).filter((f) => f.startsWith('~convert'))).toEqual([]);
+  }, 60_000);
 });

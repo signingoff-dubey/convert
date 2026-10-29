@@ -103,7 +103,7 @@ Rules:
 | Compress (video) | CRF 28 with the same codec. |
 | Resize | Dialog-free: preset chips in Settings → Output (50%, 75%, 1080p, 720p). v1 default 50%. |
 | Strip metadata | exiftool `-all=` on a copy. |
-| PDF → PNG/JPG | All pages, 300 DPI, `name-001.png` style inside a new folder `name\`. |
+| PDF → PNG/JPG | All pages, 300 DPI, `name-001.png` style, saved directly beside the PDF with no new folder (a taken name becomes `name-001 (1).png`). |
 
 ## 7. Error codes (user-facing text lives in `shared/strings.ts`)
 

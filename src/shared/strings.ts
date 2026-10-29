@@ -43,6 +43,8 @@ export const STRINGS = {
     convertedMany: (n: number) => `Converted ${n} files`,
     toolDone: (label: string, name: string) => `${label} ${name}`,
     toolDoneMany: (label: string, n: number) => `${label} ${n} files`,
+    savedIn: (folder: string) => `Saved in ${folder}`,
+    savedManyIn: (n: number, folder: string) => `${n} files saved in ${folder}`,
     alreadyCompact: 'Already compact. Nothing was written.',
     running: (name: string) => `Working on ${name}`,
     runningMany: (n: number) => `Working on ${n} files`,

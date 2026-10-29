@@ -46,6 +46,7 @@ export const Settings = z.object({
     imageQuality: z.number().min(40).max(100).default(85),
     resizePreset: z.enum(['50%', '75%', '1080p', '720p']).default('50%'),
     compressTargetPercent: z.number().min(10).max(90).default(50),
+    cursorLoader: z.boolean().default(true),
     preferredShell: z.enum(['wt', 'powershell', 'cmd']).default('wt'),
   }),
   engines: z.object({ officeEnginePath: z.string().nullable().default(null) }),

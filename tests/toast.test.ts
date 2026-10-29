@@ -23,6 +23,12 @@ describe('buildToast', () => {
     expect(t.title).toBe('Converted photo.heic → photo.png');
     expect(t.canUndo && t.canReveal).toBe(true);
   });
+  it('says exactly which folder the result is in', () => {
+    const t = buildToast([snap({ outputDir: 'D:\\Photos\\Trip', outputCount: 1 })], 6);
+    expect(t.detail).toBe('Saved in D:\\Photos\\Trip');
+    const many = buildToast([snap({ outputDir: 'D:\\Docs', outputCount: 12 })], 6);
+    expect(many.detail).toBe('12 files saved in D:\\Docs');
+  });
   it('folds a batch into one toast', () => {
     expect(buildToast([snap({ id: 'a' }), snap({ id: 'b' })], 6).title).toBe('Converted 2 files');
   });

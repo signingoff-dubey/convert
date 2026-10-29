@@ -5,9 +5,9 @@ title Convert - setup
 echo.
 echo  Convert setup
 echo  -------------
-echo  This installs everything Convert needs, once. It downloads a few hundred
-echo  megabytes (the app shell and the bundled converters), so it needs internet
-echo  now. Convert itself never uses the network.
+echo  Convert itself never uses the network. Setup only downloads what is missing
+echo  (the app shell and the bundled converters), so it needs internet when
+echo  something has to be installed.
 echo.
 where node >nul 2>nul
 if errorlevel 1 goto :nonode
@@ -16,16 +16,42 @@ if %NODE_MAJOR% LSS 20 goto :oldnode
 where npm >nul 2>nul
 if errorlevel 1 goto :nonode
 
-echo  [1/4] Installing packages...
+echo  Checking what is already installed...
+echo.
+node scripts\check-env.cjs
+set CODE=%errorlevel%
+if %CODE%==0 goto :alldone
+
+set /a "NEED_PKG=%CODE% & 1"
+set /a "NEED_DL=%CODE% & 2"
+set /a "NEED_BUILD=%CODE% & 4"
+set /a "NEED_TOOLS=%CODE% & 8"
+set /a "NEED_NATIVE=%CODE% & 16"
+if %NEED_TOOLS% NEQ 0 goto :oldnode
+
+echo  Will install only what is missing:
+if %NEED_PKG% NEQ 0 echo    - packages
+if %NEED_NATIVE% NEQ 0 echo    - packages again, because a native part does not load
+if %NEED_DL% NEQ 0 echo    - downloads for ffmpeg or Electron
+if %NEED_BUILD% NEQ 0 echo    - the build of the app
+echo.
+
+set DID_INSTALL=0
+if %NEED_PKG% NEQ 0 goto :packages
+if %NEED_NATIVE% NEQ 0 goto :packages
+goto :downloads
+
+:packages
+echo  Installing packages...
 if exist package-lock.json (
   call npm ci
 ) else (
   call npm install
 )
 if errorlevel 1 goto :npmfail
+set DID_INSTALL=1
 
-echo.
-echo  [2/4] Checking the bundled converters...
+:downloads
 rem Newer npm versions may skip install scripts, so fetch the two downloads by hand if they are missing.
 if not exist "node_modules\ffmpeg-static\ffmpeg.exe" (
   echo  Downloading ffmpeg...
@@ -40,19 +66,42 @@ if not exist "node_modules\electron\dist\electron.exe" goto :electronfail
 node -e "require('uiohook-napi');require('koffi');console.log('  Input hook and Windows bridge: OK')"
 if errorlevel 1 goto :nativefail
 
+if %NEED_BUILD% NEQ 0 goto :build
+if %DID_INSTALL%==1 goto :build
+goto :verify
+
+:build
 echo.
-echo  [3/4] Building the app...
+echo  Building the app...
 call npm run build
 if errorlevel 1 goto :buildfail
 
+:verify
 echo.
-echo  [4/4] Done.
+echo  Checking again...
 echo.
-echo  Start Convert with start.bat
+node scripts\check-env.cjs
+if errorlevel 1 goto :stillmissing
+
+echo  Done. Start Convert with start.bat
 echo  Build an installer with package.bat
 echo.
 pause
 exit /b 0
+
+:alldone
+echo  Everything is already installed and built. Nothing to do.
+echo.
+echo  Start Convert with start.bat
+echo  If the app misbehaves after an update, run build.bat to rebuild it.
+echo.
+pause
+exit /b 0
+
+:stillmissing
+echo.
+echo  Something is still missing. The list above shows what.
+goto :fail
 
 :npmfail
 echo.
@@ -83,13 +132,13 @@ goto :fail
 
 :nonode
 echo.
-echo  Node.js was not found.
+echo  Node.js or npm was not found.
 echo  Install the LTS version from https://nodejs.org and run this file again.
 goto :fail
 
 :oldnode
 echo.
-echo  Node.js %NODE_MAJOR% is too old. Convert needs Node.js 20 or newer.
+echo  Node.js is too old. Convert needs Node.js 20 or newer.
 echo  Install the LTS version from https://nodejs.org and run this file again.
 goto :fail
 

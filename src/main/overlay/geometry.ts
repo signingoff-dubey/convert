@@ -46,3 +46,18 @@ export function placeOverlay(
       Math.hypot(cursorLocal.x - wheelCenter.x, cursorLocal.y - wheelCenter.y) <= holeRadius,
   };
 }
+
+/**
+ * Top-left corner for a small badge that follows the pointer: below and to the right of it, so it never
+ * covers what is being pointed at, and flipped to the other side when it would leave the screen.
+ */
+export function placeBadge(cursor: Point, size: number, workArea: Rect, offset = 18): Point {
+  let x = cursor.x + offset;
+  let y = cursor.y + offset + 4;
+  if (x + size > workArea.x + workArea.width) x = cursor.x - offset - size;
+  if (y + size > workArea.y + workArea.height) y = cursor.y - offset - size;
+  return {
+    x: Math.max(workArea.x, Math.min(x, workArea.x + workArea.width - size)),
+    y: Math.max(workArea.y, Math.min(y, workArea.y + workArea.height - size)),
+  };
+}

@@ -166,6 +166,7 @@ export function registerIpc(ctx: IpcContext): void {
   handle('job:cancel', ({ jobId }) => ctx.queue.cancel(jobId));
   handle('job:undo', async ({ jobId }) => void (await ctx.queue.undo(jobId)));
   handle('job:reveal', ({ jobId }) => {
+    // Opens the original's folder with the first result selected.
     const out = ctx.queue.outputOf(jobId);
     if (out) shell.showItemInFolder(out);
   });

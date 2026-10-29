@@ -26,13 +26,13 @@ export const archiveEngine: Engine = {
     };
     if (op.id === 'extract-here') {
       // -spe avoids doubling a top-level folder; 7-Zip also rejects entries that escape the target.
-      await sevenZip(['x', '-y', '-spe', `-o${ctx.tempDir}`, input]);
+      await sevenZip(['x', '-y', '-spe', `-o${ctx.outDir}`, input]);
       // A .gz or .tar.gz extracts to a single .tar first; unpack that as well.
-      const entries = await readdir(ctx.tempDir);
+      const entries = await readdir(ctx.outDir);
       const only = entries.length === 1 ? entries[0] : undefined;
-      if (only && extensionOf(only) === 'tar' && (await stat(join(ctx.tempDir, only))).isFile()) {
-        await sevenZip(['x', '-y', '-spe', `-o${ctx.tempDir}`, join(ctx.tempDir, only)]);
-        await rm(join(ctx.tempDir, only), { force: true });
+      if (only && extensionOf(only) === 'tar' && (await stat(join(ctx.outDir, only))).isFile()) {
+        await sevenZip(['x', '-y', '-spe', `-o${ctx.outDir}`, join(ctx.outDir, only)]);
+        await rm(join(ctx.outDir, only), { force: true });
       }
       return;
     }

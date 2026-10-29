@@ -221,3 +221,45 @@ describe('itemsFromMimeTypes', () => {
     expect(actionsFor(itemsFromMimeTypes(['']))).toHaveLength(8);
   });
 });
+
+import { fontDataUrl } from '../src/main/engines/pdf';
+import { esmUrl } from '../src/main/engines/esm';
+
+describe('paths that pdf.js and import() need', () => {
+  it('ends the font folder in a forward slash', () => {
+    expect(fontDataUrl('/a/pdfjs-dist')).toBe('/a/pdfjs-dist/standard_fonts/');
+    expect(fontDataUrl('C:\\a\\pdfjs-dist').endsWith('/standard_fonts/')).toBe(true);
+    expect(fontDataUrl('C:\\a\\pdfjs-dist')).not.toContain('\\standard_fonts');
+  });
+  it('turns package names into absolute file URLs', () => {
+    expect(esmUrl('marked')).toMatch(/^file:\/\/\/.*marked\.esm\.js$/);
+    expect(esmUrl('pdfjs-dist/legacy/build/pdf.mjs')).toMatch(
+      /^file:\/\/\/.*legacy\/build\/pdf\.mjs$/,
+    );
+  });
+});
+
+import { familiesIn, injectCss } from '../src/main/engines/fonts';
+
+describe('font fallback', () => {
+  it('finds the families a document asks for and ignores generic ones', () => {
+    const html =
+      '<p style="font-family:\'Gill Sans MT\', Calibri, sans-serif">x</p><style>h1{font-family: "Totally Missing" !important}</style><font face="Papyrus">y</font>';
+    expect(familiesIn(html).sort()).toEqual([
+      'Calibri',
+      'Gill Sans MT',
+      'Papyrus',
+      'Totally Missing',
+    ]);
+    expect(familiesIn('body{font-family:Inter,serif}')).toEqual([]);
+    expect(familiesIn('<h1 style="font-family:\'Totally Missing Font\'">x</h1>')).toEqual([
+      'Totally Missing Font',
+    ]);
+  });
+  it('puts the CSS in the head, or in front when there is none', () => {
+    expect(injectCss('<html><head><title>t</title></head></html>', 'a{}')).toContain(
+      '<head><style>a{}</style>',
+    );
+    expect(injectCss('<p>x</p>', 'a{}')).toBe('<style>a{}</style><p>x</p>');
+  });
+});

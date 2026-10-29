@@ -69,6 +69,9 @@ export function planOutput(op: Operation, input: string): OutputKind {
     if (op.id === 'gz' && ['zip', 'tar', 'rar'].includes(inExt))
       return { type: 'file', ext: 'tar.gz' };
     if (inExt === 'pdf' && (op.id === 'png' || op.id === 'jpg')) return { type: 'dir' };
+    // A workbook becomes one CSV or TSV per sheet, all beside it.
+    if ((op.id === 'csv' || op.id === 'tsv') && ['xlsx', 'xls', 'ods'].includes(inExt))
+      return { type: 'dir' };
     // Slides render every slide to its own image, in a new folder.
     if ((inExt === 'ppt' || inExt === 'pptx') && (op.id === 'png' || op.id === 'jpg'))
       return { type: 'dir' };

@@ -13,6 +13,7 @@ import {
 } from '../jobs/types';
 import { dynamicImport } from './esm';
 import { buildEpub } from './epub';
+import { pdfLoss } from './losses';
 import { ocrImage, userCacheDir } from './ocr';
 import sharp from 'sharp';
 
@@ -150,6 +151,8 @@ export interface PdfPage {
   /** The page drawn at `scale` (1 = 72 dpi): PNG, or JPEG on white. */
   image(scale: number, format: 'png' | 'jpg'): Promise<Buffer>;
   text(): Promise<TextItem[]>;
+  /** True when the page paints any picture (a photo, chart or scan). */
+  hasImages(): Promise<boolean>;
   cleanup(): void;
 }
 export interface PdfDocument {
@@ -173,6 +176,7 @@ function openPdf(path: string): Promise<PdfDocument> {
 }
 
 interface NodePdfJs {
+  OPS: Record<string, number>;
   getDocument(o: Record<string, unknown>): {
     promise: Promise<{
       numPages: number;
@@ -180,11 +184,24 @@ interface NodePdfJs {
         getViewport(o: { scale: number }): { width: number; height: number };
         render(o: Record<string, unknown>): { promise: Promise<void> };
         getTextContent(): Promise<{ items: TextItem[] }>;
+        getOperatorList(): Promise<{ fnArray: number[] }>;
         cleanup(): void;
       }>;
     }>;
     destroy(): Promise<void>;
   };
+}
+
+const IMAGE_OPS = [
+  'paintImageXObject',
+  'paintInlineImageXObject',
+  'paintImageMaskXObject',
+  'paintJpegXObject',
+];
+
+/** pdf.js insists the font folder ends in a forward slash, on Windows too. */
+export function fontDataUrl(root: string): string {
+  return `${join(root, 'standard_fonts').replace(/\\/g, '/')}/`;
 }
 
 async function openWithPdfJs(path: string): Promise<PdfDocument> {
@@ -195,7 +212,7 @@ async function openWithPdfJs(path: string): Promise<PdfDocument> {
     data: new Uint8Array(await readFile(path)),
     useSystemFonts: true,
     isEvalSupported: false,
-    standardFontDataUrl: `${join(root, 'standard_fonts')}${process.platform === 'win32' ? '\\' : '/'}`,
+    standardFontDataUrl: fontDataUrl(root),
     verbosity: 0,
   });
   try {
@@ -219,6 +236,10 @@ async function openWithPdfJs(path: string): Promise<PdfDocument> {
               : canvas.toBuffer('image/jpeg', 90);
           },
           text: async () => (await page.getTextContent()).items,
+          hasImages: async () => {
+            const ops = await page.getOperatorList();
+            return ops.fnArray.some((f) => IMAGE_OPS.some((name) => pdfjs.OPS[name] === f));
+          },
           cleanup: () => page.cleanup(),
         };
       },
@@ -272,11 +293,25 @@ export async function pageThumbnails(
   }
 }
 
+/** Lowercase letters and digits only, so the same words match whatever spacing or punctuation surrounds them. */
+const squash = (t: string): string => t.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+
+/** Lines of OCR text that the page's own text layer does not already contain. */
+export function newLines(ocr: string, native: string): string[] {
+  const have = squash(native);
+  return ocr
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => squash(l).length >= 3 && !have.includes(squash(l)));
+}
+
 async function extractText(input: string, markdown: boolean, ctx: RunContext): Promise<void> {
   const doc = await openPdf(input);
   try {
     const parts: string[] = [];
-    const scanned: number[] = [];
+    // 'scan' pages have no text layer at all; 'pictures' pages have text plus images, which may hold more text
+    // (charts, screenshots, scanned inserts). Both are read with OCR below.
+    const ocrPages: { n: number; mode: 'scan' | 'pictures' }[] = [];
     for (let n = 1; n <= doc.numPages; n++) {
       if (ctx.signal.aborted) throw new JobError('E_CANCELLED');
       const page = await doc.getPage(n);
@@ -284,19 +319,26 @@ async function extractText(input: string, markdown: boolean, ctx: RunContext): P
         .map((i) => (i.str ?? '') + (i.hasEOL ? '\n' : ''))
         .join('')
         .trim();
-      // A page with no text layer is a picture of text (a scan): read it with OCR below.
-      if (text === '') scanned.push(n);
+      if (text === '') ocrPages.push({ n, mode: 'scan' });
+      else if (await page.hasImages()) ocrPages.push({ n, mode: 'pictures' });
       parts.push(text);
       page.cleanup();
-      ctx.onProgress(Math.round((n / doc.numPages) * (scanned.length > 0 ? 40 : 100)));
+      ctx.onProgress(Math.round((n / doc.numPages) * (ocrPages.length > 0 ? 40 : 100)));
     }
-    for (const [i, n] of scanned.entries()) {
+    for (const [i, { n, mode }] of ocrPages.entries()) {
       if (ctx.signal.aborted) throw new JobError('E_CANCELLED');
       const page = await doc.getPage(n);
       const png = await page.image(2.5, 'png');
       page.cleanup();
-      parts[n - 1] = await ocrImage(sharp(png), { cacheDir: userCacheDir(), signal: ctx.signal });
-      ctx.onProgress(40 + Math.round(((i + 1) / scanned.length) * 60));
+      const read = await ocrImage(sharp(png), { cacheDir: userCacheDir(), signal: ctx.signal });
+      if (mode === 'scan') parts[n - 1] = read;
+      else {
+        const extra = newLines(read, parts[n - 1] as string);
+        if (extra.length > 0)
+          parts[n - 1] +=
+            `\n\n${markdown ? '*Text found in pictures on this page:*\n\n' : ''}${extra.join('\n')}`;
+      }
+      ctx.onProgress(40 + Math.round(((i + 1) / ocrPages.length) * 60));
     }
     const pages = parts.map((text, i) => (markdown ? `## Page ${i + 1}\n\n${text}` : text));
     await writeFile(ctx.tempPath, pages.join(markdown ? '\n\n---\n\n' : '\n\n') + '\n', 'utf8');
@@ -424,9 +466,11 @@ export const pdfEngine: Engine = {
     try {
       if (op.kind === 'convert') {
         if (op.id === 'png' || op.id === 'jpg') return await renderPages(input, op.id, ctx);
-        if (op.id === 'epub') return await toEpub(input, ctx);
-        if (op.id === 'xlsx') return await toXlsx(input, ctx);
-        return await extractText(input, op.id === 'md', ctx);
+        if (op.id === 'epub') await toEpub(input, ctx);
+        else if (op.id === 'xlsx') await toXlsx(input, ctx);
+        else await extractText(input, op.id === 'md', ctx);
+        const warning = await pdfLoss(input);
+        return warning ? { warning } : undefined;
       }
       if (op.id === 'split') return await split(input, op, ctx);
       if (op.id === 'delete-pages') return await deletePages(input, op, ctx);

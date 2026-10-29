@@ -48,6 +48,7 @@ export interface JobSnapshot {
   /** How many files or folders were created. */
   outputCount?: number;
   note?: 'already-compact' | 'text-copied';
+  warning?: string;
   /** For Copy text: how many characters went to the clipboard. */
   copiedChars?: number;
   error?: { code: ErrorCode; message: string };
@@ -67,6 +68,7 @@ interface Job {
   output?: string;
   outputs?: string[];
   note?: 'already-compact' | 'text-copied';
+  warning?: string;
   copiedChars?: number;
   error?: { code: ErrorCode; message: string };
   finishedAt?: number;
@@ -208,6 +210,7 @@ export class JobQueue extends EventEmitter {
       outputs: j.outputs,
       status: j.status,
       note: j.note,
+      warning: j.warning,
       error: j.error,
     };
   }
@@ -283,6 +286,7 @@ export class JobQueue extends EventEmitter {
       });
       if (job.controller.signal.aborted) throw new JobError('E_CANCELLED');
 
+      job.warning = (result as RunResult | undefined)?.warning;
       if ((result as RunResult | undefined)?.note === 'already-compact') {
         job.note = 'already-compact';
         return this.finish(job, 'ok');
@@ -426,6 +430,7 @@ export class JobQueue extends EventEmitter {
       outputDir: job.output ? path.dirname(job.output) : undefined,
       outputCount: job.outputs?.length,
       note: job.note,
+      warning: job.warning,
       copiedChars: job.copiedChars,
       error: job.error,
       undoable: job.status === 'ok' && (job.outputs?.length ?? 0) > 0,

@@ -205,7 +205,7 @@ export const EVENTS = {
   }),
   'pdfrender:req': z.object({
     id: z.number().int(),
-    op: z.enum(['open', 'size', 'image', 'text', 'cleanup', 'close']),
+    op: z.enum(['open', 'size', 'image', 'text', 'images', 'cleanup', 'close']),
     doc: z.number().int().optional(),
     n: z.number().int().optional(),
     scale: z.number().optional(),

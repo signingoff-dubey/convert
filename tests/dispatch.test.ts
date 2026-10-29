@@ -7,7 +7,7 @@ import { dispatchWedge, validateDropped, type DispatchDeps } from '../src/main/d
 vi.mock('electron', () => ({ net: {}, protocol: {} }));
 
 const root = mkdtempSync(join(tmpdir(), 'convert-dispatch-'));
-afterAll(() => rmSync(root, { recursive: true, force: true }));
+afterAll(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }));
 
 function deps(over: Partial<DispatchDeps> = {}) {
   const enqueue = vi.fn();

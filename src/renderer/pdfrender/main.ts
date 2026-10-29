@@ -10,7 +10,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
 interface Req {
   id: number;
-  op: 'open' | 'size' | 'image' | 'text' | 'cleanup' | 'close';
+  op: 'open' | 'size' | 'image' | 'text' | 'images' | 'cleanup' | 'close';
   doc?: number;
   n?: number;
   scale?: number;
@@ -50,6 +50,15 @@ async function handle(req: Req): Promise<unknown> {
     if (req.op === 'size') {
       const v = page.getViewport({ scale: 1 });
       return { width: v.width, height: v.height };
+    }
+    if (req.op === 'images') {
+      const { fnArray } = await page.getOperatorList();
+      const paints = [
+        pdfjs.OPS.paintImageXObject,
+        pdfjs.OPS.paintInlineImageXObject,
+        pdfjs.OPS.paintImageMaskXObject,
+      ];
+      return fnArray.some((f) => paints.includes(f));
     }
     if (req.op === 'text') {
       const content = await page.getTextContent();

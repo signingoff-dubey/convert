@@ -13,7 +13,7 @@ import { AppState } from '../src/main/services/state';
 import { defaultSettings } from '../src/main/settings/schema';
 
 const root = mkdtempSync(join(tmpdir(), 'convert-actions-'));
-afterAll(() => rmSync(root, { recursive: true, force: true }));
+afterAll(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }));
 
 function deps(over: Partial<ActionDeps> = {}) {
   const notes: string[] = [];
@@ -35,8 +35,9 @@ function deps(over: Partial<ActionDeps> = {}) {
 
 describe('uniqueDestination / isInside', () => {
   it('numbers existing names', () => {
-    const taken = new Set(['/o/a.txt', '/o/a (1).txt']);
-    expect(uniqueDestination('/o/a.txt', (p) => taken.has(p))).toBe('/o/a (2).txt');
+    const at = (name: string) => join('/o', name);
+    const taken = new Set([at('a.txt'), at('a (1).txt')]);
+    expect(uniqueDestination(at('a.txt'), (p) => taken.has(p))).toBe(at('a (2).txt'));
   });
   it('detects containment', () => {
     expect(isInside('/a/b', '/a/b/c')).toBe(true);

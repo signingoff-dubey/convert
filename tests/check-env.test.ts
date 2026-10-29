@@ -56,7 +56,11 @@ function fakeProject(
   }
   return root;
 }
-afterAll(() => roots.forEach((r) => rmSync(r, { recursive: true, force: true })));
+afterAll(() =>
+  roots.forEach((r) =>
+    rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }),
+  ),
+);
 
 const base = {
   platform: 'win32',
@@ -131,15 +135,19 @@ describe('check-env', () => {
     expect(status(inspect(root, { ...base, platform: 'linux' }), 'ffmpeg')).toBe('ok');
     expect(status(inspect(root, base), 'ffmpeg')).toBe('missing');
   });
-  it('treats the real project as complete once it is installed and built', () => {
-    const r = inspect(join(__dirname, '..'), {
-      ...base,
-      platform: process.platform,
-      arch: process.arch,
-      tryLoad: true,
-    });
-    expect(status(r, 'packages')).toBe('ok');
-    expect(status(r, 'electron')).toBe('ok');
-    expect(status(r, 'ffmpeg')).toBe('ok');
-  });
+  // CI installs packages but may not have fetched Electron's binary yet; the packager downloads it itself.
+  it.skipIf(process.env.CI !== undefined)(
+    'treats the real project as complete once it is installed and built',
+    () => {
+      const r = inspect(join(__dirname, '..'), {
+        ...base,
+        platform: process.platform,
+        arch: process.arch,
+        tryLoad: true,
+      });
+      expect(status(r, 'packages')).toBe('ok');
+      expect(status(r, 'electron')).toBe('ok');
+      expect(status(r, 'ffmpeg')).toBe('ok');
+    },
+  );
 });

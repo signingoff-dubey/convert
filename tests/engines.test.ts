@@ -132,7 +132,7 @@ beforeAll(() => {
 afterAll(async () => {
   await shutdownExiftool();
   await shutdownOcr();
-  rmSync(dir, { recursive: true, force: true });
+  rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 });
 
 describe('images', () => {
@@ -588,7 +588,7 @@ describe('zip many files and folders', () => {
       .toString()
       .split('\n')
       .filter((l) => l.startsWith('Path = '))
-      .map((l) => l.slice(7).trim())
+      .map((l) => l.slice(7).trim().replace(/\\/g, '/'))
       .slice(1)
       .sort();
 
@@ -868,7 +868,7 @@ describe('passwords', () => {
       .toString()
       .split('\n')
       .filter((l) => l.startsWith('Path = '))
-      .map((l) => l.slice(7).trim())
+      .map((l) => l.slice(7).trim().replace(/\\/g, '/'))
       .slice(1)
       .sort();
   }
@@ -947,5 +947,127 @@ describe('upscale and background removal', () => {
       .toFile(noisy);
     const r = (await run('remove-bg', 'tool', [noisy], { tolerance: 3 }))[0] as JobResult;
     expect(r.status).toBe('error');
+  });
+});
+
+// ---- Files with pictures, charts and several sheets ---------------------------------------
+
+describe('files that hold more than text', () => {
+  const sheetFiles = (r: JobResult): string[] => (r.outputs ?? []).map((o) => basename(o)).sort();
+
+  async function workbook(
+    name: string,
+    sheets: Record<string, (string | number)[][]>,
+    withPicture = false,
+  ) {
+    const ExcelJS = (await import('exceljs')).default;
+    const wb = new ExcelJS.Workbook();
+    for (const [title, rows] of Object.entries(sheets)) wb.addWorksheet(title).addRows(rows);
+    if (withPicture) {
+      const id = wb.addImage({
+        buffer: (await sharp({ create: { width: 8, height: 8, channels: 3, background: '#f00' } })
+          .png()
+          .toBuffer()) as never,
+        extension: 'png',
+      });
+      wb.worksheets[0]?.addImage(id, 'D2:E4');
+    }
+    const p = join(dir, name);
+    await wb.xlsx.writeFile(p);
+    return p;
+  }
+
+  it('exports every sheet of a workbook, one file each, and a single sheet keeps the workbook name', async () => {
+    const book = await workbook('multi.xlsx', {
+      Sales: [
+        ['q', 'v'],
+        ['Q1', 10],
+      ],
+      'Costs 2024': [['rent', 5]],
+      Notes: [['hello']],
+    });
+    const r = (await run('csv', 'convert', [book]))[0] as JobResult;
+    expect(sheetFiles(r)).toEqual([
+      'multi - Costs 2024.csv',
+      'multi - Notes.csv',
+      'multi - Sales.csv',
+    ]);
+    expect(readFileSync(r.outputs?.find((o) => o.endsWith('Sales.csv')) as string, 'utf8')).toBe(
+      '\ufeffq,v\r\nQ1,10',
+    );
+    const single = await workbook('single.xlsx', { Only: [['a', 1]] });
+    expect(sheetFiles((await run('tsv', 'convert', [single]))[0] as JobResult)).toEqual([
+      'single.tsv',
+    ]);
+  });
+
+  it('puts all sheets in the text version, under a heading each', async () => {
+    const book = await workbook('multi-txt.xlsx', { A: [['1']], B: [['2']] });
+    const text = readFileSync(ok((await run('txt', 'convert', [book]))[0] as JobResult), 'utf8');
+    expect(text).toBe('## A\n1\n\n## B\n2\n');
+  });
+
+  it('says when a workbook has pictures that the text version leaves out', async () => {
+    const book = await workbook('pic.xlsx', { A: [['1']] }, true);
+    const r = (await run('csv', 'convert', [book]))[0] as JobResult;
+    expect(r.status).toBe('ok');
+    expect(r.warning).toMatch(/Pictures were left out/);
+  });
+
+  it('says when files are attached to a PDF', async () => {
+    const canvas = createCanvas(600, 220);
+    const g = canvas.getContext('2d');
+    g.fillStyle = '#fff';
+    g.fillRect(0, 0, 600, 220);
+    g.fillStyle = '#000';
+    g.font = 'bold 70px sans-serif';
+    g.fillText('REVENUE CHART', 20, 120);
+    const doc = await PDFDocument.create();
+    const font = await doc.embedFont(StandardFonts.Helvetica);
+    const withPicture = doc.addPage([400, 300]);
+    withPicture.drawText('Native heading', { x: 20, y: 260, size: 16, font });
+    withPicture.drawImage(await doc.embedPng(canvas.toBuffer('image/png')), {
+      x: 20,
+      y: 40,
+      width: 360,
+      height: 132,
+    });
+    const scanned = doc.addPage([400, 300]);
+    scanned.drawImage(await doc.embedPng(canvas.toBuffer('image/png')), {
+      x: 20,
+      y: 80,
+      width: 360,
+      height: 132,
+    });
+    await doc.attach(Buffer.from('not really a sheet'), 'data.xlsx', {
+      mimeType: 'application/vnd.ms-excel',
+    });
+    const pdf = join(dir, 'pictures.pdf');
+    writeFileSync(pdf, await doc.save());
+    // Reading the pictures themselves needs a browser to draw them, so that part is checked in the app (scripts/smoke.cjs).
+    const r = (await run('txt', 'convert', [pdf]))[0] as JobResult;
+    expect(readFileSync(ok(r), 'utf8')).toContain('Native heading');
+    expect(r.warning).toMatch(/attached/);
+  }, 180_000);
+
+  it('does not repeat words the page already has as text', async () => {
+    const { newLines } = await import('../src/main/engines/pdf');
+    expect(newLines('Total revenue\nQ1 120\nx', 'Total  Revenue was strong')).toEqual(['Q1 120']);
+  });
+
+  it('says when a Word file has charts or an embedded Excel sheet that text, HTML and EPUB cannot hold', async () => {
+    const { Document, Packer, Paragraph } = await import('docx');
+    const JSZip = (await import('jszip')).default;
+    const zip = await JSZip.loadAsync(
+      await Packer.toBuffer(new Document({ sections: [{ children: [new Paragraph('body')] }] })),
+    );
+    zip.file('word/charts/chart1.xml', '<c/>');
+    zip.file('word/embeddings/Microsoft_Excel_Sheet1.xlsx', 'x');
+    const p = join(dir, 'with-embeds.docx');
+    writeFileSync(p, await zip.generateAsync({ type: 'nodebuffer' }));
+    const r = (await run('txt', 'convert', [p]))[0] as JobResult;
+    expect(r.status).toBe('ok');
+    expect(r.warning).toBe('Charts and embedded files (such as Excel sheets) were left out.');
+    expect(readFileSync(ok(r), 'utf8')).toContain('body');
   });
 });

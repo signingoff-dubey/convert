@@ -8,7 +8,7 @@ import { detectTextBoxes, readFaceModel, shutdownDetectors } from '../src/main/e
 const dir = mkdtempSync(join(tmpdir(), 'convert-detect-'));
 afterAll(async () => {
   await shutdownDetectors();
-  rmSync(dir, { recursive: true, force: true });
+  rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 });
 
 describe('text detection (offline OCR)', () => {

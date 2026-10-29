@@ -98,7 +98,7 @@ export function drawShape(ctx: Ctx2D, s: Shape): void {
       break;
     case 'text': {
       const size = textSize(s.width);
-      ctx.font = `600 ${size}px "Segoe UI", system-ui, sans-serif`;
+      ctx.font = `600 ${size}px "Segoe UI", "Inter Variable", system-ui, sans-serif`;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
       // A thin outline keeps the text readable on any photo.
@@ -114,7 +114,7 @@ export function drawShape(ctx: Ctx2D, s: Shape): void {
       ctx.arc(s.x1, s.y1, r, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = '#ffffff';
-      ctx.font = `700 ${r * 1.15}px "Segoe UI", system-ui, sans-serif`;
+      ctx.font = `700 ${r * 1.15}px "Segoe UI", "Inter Variable", system-ui, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(String(s.n ?? 1), s.x1, s.y1 + r * 0.06);

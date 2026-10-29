@@ -82,6 +82,7 @@ export class PdfHost {
           image: async (scale, format) =>
             Buffer.from(await this.call<Uint8Array>({ op: 'image', doc, n, scale, format })),
           text: () => this.call<TextItem[]>({ op: 'text', doc, n }),
+          hasImages: () => this.call<boolean>({ op: 'images', doc, n }),
           cleanup: () => undefined,
         };
       },

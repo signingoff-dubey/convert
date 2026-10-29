@@ -216,6 +216,37 @@ const windowOf = (app, part) => app.windows().find((w) => w.url().includes(part)
     'Markdown prints to a PDF in the app',
     printed.subarray(0, 4).toString() === '%PDF' && printed.length > 1000,
   );
+  writeFileSync(
+    join(dir, 'fonts.html'),
+    '<html><head><title>f</title></head><body><h1 style="font-family:\'Totally Missing Font\'">Hello Привет</h1></body></html>',
+  );
+  await job(`convert:pdf:${join(dir, 'fonts.html')}`);
+  const fontPdf = existsSync(join(dir, 'fonts.pdf'))
+    ? readFileSync(join(dir, 'fonts.pdf'), 'latin1')
+    : '';
+  check(
+    'a font that is not installed becomes Inter in the PDF',
+    /FontName \/\w+\+Inter/.test(fontPdf) && !/Missing/.test(fontPdf),
+  );
+  // A PDF whose page is a picture of text, and another whose page has text plus a picture holding more text.
+  const picPdf = await PDFDocument.create();
+  const shot = await sharp(Buffer.from(textSvg)).png().toBuffer();
+  const mixed = picPdf.addPage([600, 400]);
+  mixed.drawText('Native heading', { x: 30, y: 360, size: 18 });
+  mixed.drawImage(await picPdf.embedPng(shot), { x: 20, y: 120, width: 560, height: 120 });
+  picPdf
+    .addPage([600, 400])
+    .drawImage(await picPdf.embedPng(shot), { x: 20, y: 120, width: 560, height: 120 });
+  writeFileSync(join(dir, 'pictures.pdf'), await picPdf.save());
+  await job(`convert:txt:${join(dir, 'pictures.pdf')}`, 14000);
+  const picText = existsSync(join(dir, 'pictures.txt'))
+    ? readFileSync(join(dir, 'pictures.txt'), 'utf8')
+    : '';
+  check(
+    'text inside pictures in a PDF is read, on text pages and scanned pages',
+    /Native heading/.test(picText) && (picText.match(/HELLO/gi) ?? []).length === 2,
+    JSON.stringify(picText.slice(0, 120)),
+  );
 
   const failed = results.filter((r) => !r).length;
   console.log(`\n${results.length - failed} passed, ${failed} failed`);

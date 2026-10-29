@@ -4,6 +4,8 @@ import { basename, join } from 'node:path';
 import { extensionOf } from '../../shared/formats';
 import { JobError, type Engine, type Operation } from '../jobs/types';
 import { dynamicImport } from './esm';
+import { docxLoss } from './losses';
+import { injectCss, interFallbackCss } from './fonts';
 import { htmlToPdf, htmlToPdfAvailable } from './html-pdf';
 import { buildEpub, readEpub, splitChapters } from './epub';
 import { rtfToText } from './rtf';
@@ -46,7 +48,7 @@ export function mdToText(md: string): string {
 
 function page(title: string, body: string): string {
   return `<!doctype html>\n<html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
-<style>body{font-family:system-ui,'Segoe UI',sans-serif;max-width:46rem;margin:2rem auto;padding:0 1rem;line-height:1.6}pre{background:#f4f4f6;padding:.75rem;overflow:auto;white-space:pre-wrap;word-break:break-word}code{background:#f4f4f6;padding:.1em .3em;border-radius:3px}pre code{background:none;padding:0}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:.3rem .6rem}img{max-width:100%}blockquote{border-left:3px solid #ccc;margin-left:0;padding-left:1rem;color:#555}@media print{body{max-width:none;margin:0}h1,h2,h3{break-after:avoid}pre,table,img{break-inside:avoid}}</style>
+<style>body{font-family:Inter,'Segoe UI',system-ui,sans-serif;max-width:46rem;margin:2rem auto;padding:0 1rem;line-height:1.6}pre{background:#f4f4f6;padding:.75rem;overflow:auto;white-space:pre-wrap;word-break:break-word}code{background:#f4f4f6;padding:.1em .3em;border-radius:3px}pre code{background:none;padding:0}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:.3rem .6rem}img{max-width:100%}blockquote{border-left:3px solid #ccc;margin-left:0;padding-left:1rem;color:#555}@media print{body{max-width:none;margin:0}h1,h2,h3{break-after:avoid}pre,table,img{break-inside:avoid}}</style>
 </head><body>\n${body}\n</body></html>\n`;
 }
 
@@ -244,7 +246,9 @@ async function toPdf(input: string, ext: string, ctx: Ctx): Promise<void> {
     const work = join(ctx.tempDir, 'src');
     await mkdir(work, { recursive: true });
     const page_ = join(work, 'page.html');
-    await writeFile(page_, ext === 'html' ? html : page(title, html), 'utf8');
+    const full = ext === 'html' ? html : page(title, html);
+    // Fonts this computer lacks become Inter instead of an arbitrary default.
+    await writeFile(page_, injectCss(full, await interFallbackCss(full, work)), 'utf8');
     await htmlToPdf(page_, ctx.tempPath, ctx.signal);
     return;
   }
@@ -272,6 +276,20 @@ export const docsEngine: Engine = {
   id: 'docs',
   canHandle: docsCanHandle,
   async run(op, input, ctx) {
+    const result = await convertDoc(op, input, ctx);
+    // Charts and embedded files (an Excel sheet inside a Word file) cannot go to text, Markdown, HTML or EPUB,
+    // nor to PDF without LibreOffice. Say so instead of dropping them silently.
+    const kept = op.id === 'pdf' && ctx.officePath !== null;
+    if (extensionOf(input) === 'docx' && !kept) {
+      const warning = await docxLoss(input);
+      if (warning) return { ...(result as object | undefined), warning };
+    }
+    return result;
+  },
+};
+
+async function convertDoc(op: Operation, input: string, ctx: Ctx): Promise<unknown> {
+  {
     const ext = extensionOf(input);
     if (op.kind === 'tool') {
       // Text and Markdown files are joined in the order given, each separated by a blank line.
@@ -321,5 +339,5 @@ export const docsEngine: Engine = {
       default:
         throw new JobError('E_UNSUPPORTED', `${ext} to ${op.id}`);
     }
-  },
-};
+  }
+}

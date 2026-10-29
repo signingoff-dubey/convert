@@ -65,6 +65,8 @@ export interface RunContext {
 export interface RunResult {
   /** Set when nothing was written because the result would not be smaller. */
   note?: 'already-compact';
+  /** Something the conversion could not carry over, shown to the user with the result. */
+  warning?: string;
 }
 
 export interface Engine {
@@ -84,5 +86,6 @@ export interface JobResult {
   outputs?: string[];
   status: Exclude<JobStatus, 'queued' | 'running'>;
   note?: 'already-compact' | 'text-copied';
+  warning?: string;
   error?: { code: ErrorCode; message: string };
 }

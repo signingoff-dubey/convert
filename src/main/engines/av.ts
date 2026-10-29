@@ -118,6 +118,8 @@ export const avEngine: Engine = {
     if (op.kind === 'tool' && op.id === 'merge') return mergeMedia(op, input, ctx);
     const exe = ffmpegPath();
     if (!exe) throw new JobError('E_ENGINE_MISSING', 'ffmpeg');
+    // ffmpeg words the error for an empty file differently on each system, so catch it up front.
+    if ((await stat(input)).size === 0) throw new JobError('E_CORRUPT_INPUT', 'the file is empty');
     const duration = await probeDuration(input);
     const args = buildFfmpegArgs({
       op,
@@ -145,7 +147,7 @@ export const avEngine: Engine = {
         throw new JobError('E_UNSUPPORTED', 'this file has no audio track');
       }
       throw new JobError(
-        /Invalid data|moov atom|could not find codec/i.test(res.stderr)
+        /Invalid data|Invalid argument|moov atom|could not find codec/i.test(res.stderr)
           ? 'E_CORRUPT_INPUT'
           : 'E_UNKNOWN',
         tail,

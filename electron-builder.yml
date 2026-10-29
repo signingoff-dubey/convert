@@ -35,6 +35,7 @@ asarUnpack:
   - node_modules/tesseract.js-core/**
   - node_modules/@vladmandic/face-api/model/**
   - node_modules/pdfjs-dist/standard_fonts/**
+  - node_modules/@fontsource-variable/inter/**
 extraResources:
   - from: docs/LICENSES.md
     to: LICENSES.md

@@ -99,12 +99,15 @@ export function buildToast(batch: JobSnapshot[], seconds: number): ToastModel {
   // Say exactly where the result is: the original's own folder, unless a custom folder was chosen.
   const folder = ok.find((j) => j.outputDir)?.outputDir;
   const files = ok.reduce((sum, j) => sum + (j.outputCount ?? 0), 0);
-  const detail =
+  const saved =
     compact || !folder
       ? undefined
       : files > 1
         ? STRINGS.toast.savedManyIn(files, folder)
         : STRINGS.toast.savedIn(folder);
+  // Say what the conversion could not carry over, so nothing disappears silently.
+  const warning = [...new Set(ok.map((j) => j.warning).filter(Boolean))].join(' ');
+  const detail = [saved, warning].filter(Boolean).join(' ') || undefined;
   return {
     ...base,
     kind: 'success',

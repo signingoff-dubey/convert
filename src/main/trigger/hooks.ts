@@ -50,6 +50,7 @@ export class TriggerEngine {
   private tickTimer: NodeJS.Timeout | null = null;
   private graceTimer: NodeJS.Timeout | null = null;
   private pendingPaths: string[] = [];
+  private extraClasses: string[] = [];
 
   constructor(private readonly deps: TriggerDeps) {}
 
@@ -59,6 +60,17 @@ export class TriggerEngine {
 
   setTestMode(on: boolean): void {
     this.testMode = on;
+  }
+
+  /** Extra window classes allowed to start a drag, used while the onboarding sample is on screen. */
+  setExtraClasses(classes: string[]): void {
+    this.extraClasses = classes;
+  }
+
+  /** The overlay reported a drop in the hole, outside the wheel, or a cancel. */
+  cancelOverlay(): void {
+    if (this.graceTimer) clearTimeout(this.graceTimer);
+    this.dispatch({ type: 'drop', at: this.now(), target: { kind: 'outside' } });
   }
 
   /** Starts the hooks. Pause removes them entirely, so nothing is observed while paused. */
@@ -103,7 +115,10 @@ export class TriggerEngine {
       if (e.button !== 1) return;
       this.lastCursor = { x: e.x, y: e.y };
       const settings = this.deps.getSettings();
-      const allowed = isSourceAllowed(this.deps.win32.windowClassAt(e.x, e.y), settings.general);
+      const rootClass = this.deps.win32.windowClassAt(e.x, e.y);
+      const allowed =
+        isSourceAllowed(rootClass, settings.general) ||
+        (rootClass !== null && this.extraClasses.includes(rootClass));
       this.dispatch({
         type: 'leftDown',
         at: this.now(),

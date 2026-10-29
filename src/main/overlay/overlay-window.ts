@@ -32,7 +32,10 @@ export class OverlayManager implements OverlayController {
   private bounds: Rect | null = null;
   private visible = false;
 
-  constructor(private readonly getSettings: () => Settings) {}
+  constructor(
+    private readonly getSettings: () => Settings,
+    private readonly getFlags: () => { office: boolean; heic: boolean },
+  ) {}
 
   async create(): Promise<void> {
     const win = createWindow(
@@ -81,6 +84,7 @@ export class OverlayManager implements OverlayController {
       wheelId: wheel,
       center: placement.wheelCenter,
       diameter: WHEEL_DIAMETER[size],
+      flags: this.getFlags(),
     });
     win.showInactive();
     win.setAlwaysOnTop(true, 'screen-saver');

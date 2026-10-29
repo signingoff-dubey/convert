@@ -1,16 +1,19 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+export type DockEdge = 'free' | 'left' | 'right' | 'top' | 'bottom';
+
 interface StateFile {
   firstRunDone: boolean;
   recentFolders: string[];
+  floatDock: DockEdge;
 }
 
 const MAX_RECENT = 8;
 
 /** Small non-settings state: first-run flag and recent Copy/Move folders. */
 export class AppState {
-  private data: StateFile = { firstRunDone: false, recentFolders: [] };
+  private data: StateFile = { firstRunDone: false, recentFolders: [], floatDock: 'right' };
   private readonly file: string;
 
   constructor(private readonly dir: string) {
@@ -24,6 +27,9 @@ export class AppState {
           recentFolders: Array.isArray(r.recentFolders)
             ? r.recentFolders.filter((f): f is string => typeof f === 'string').slice(0, MAX_RECENT)
             : [],
+          floatDock:
+            (['free', 'left', 'right', 'top', 'bottom'] as const).find((e) => e === r.floatDock) ??
+            'right',
         };
       }
     } catch {
@@ -37,6 +43,15 @@ export class AppState {
 
   setFirstRunDone(done: boolean): void {
     this.data.firstRunDone = done;
+    this.save();
+  }
+
+  get floatDock(): DockEdge {
+    return this.data.floatDock;
+  }
+
+  setFloatDock(edge: DockEdge): void {
+    this.data.floatDock = edge;
     this.save();
   }
 

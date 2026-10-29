@@ -22,6 +22,7 @@ function deps(over: Partial<ActionDeps> = {}) {
     getSettings: defaultSettings,
     pickFolder: async () => null,
     writeClipboard: vi.fn(),
+    copyFilesToClipboard: vi.fn(async () => true),
     showItemInFolder: vi.fn(),
     openTerminal: vi.fn(async () => 'wt'),
     addToFloat: vi.fn(),
@@ -56,21 +57,30 @@ describe('actions', () => {
     mkdirSync(dest);
     writeFileSync(src, 'data');
     const { d, recent } = deps({ pickFolder: async () => dest });
-    await runAction('copy', [src], d);
+    await runAction('copy-to', [src], d);
     expect(existsSync(src)).toBe(true);
     expect(readFileSync(join(dest, 'src.txt'), 'utf8')).toBe('data');
     expect(recent[0]).toBe(dest);
-    await runAction('copy', [src], d);
+    await runAction('copy-to', [src], d);
     expect(existsSync(join(dest, 'src (1).txt'))).toBe(true);
     await runAction('move', [src], d);
     expect(existsSync(src)).toBe(false);
     expect(existsSync(join(dest, 'src (2).txt'))).toBe(true);
-    for (const id of ['copy-path', 'reveal', 'terminal', 'float'] as const) {
+    for (const id of ['copy', 'copy-path', 'reveal', 'terminal', 'float'] as const) {
       const s = join(root, `keep-${id}.txt`);
       writeFileSync(s, 'x');
       await runAction(id, [s], deps().d);
       expect(existsSync(s)).toBe(true);
     }
+  });
+  it('copy puts the files on the clipboard and reports a failure', async () => {
+    const ok = deps();
+    await runAction('copy', ['C:\\a.png', 'C:\\b.png'], ok.d);
+    expect(ok.d.copyFilesToClipboard).toHaveBeenCalledWith(['C:\\a.png', 'C:\\b.png']);
+    expect(ok.notes[0]).toMatch(/2 files copied/);
+    const bad = deps({ copyFilesToClipboard: async () => false });
+    await runAction('copy', ['C:\\a.png'], bad.d);
+    expect(bad.notes[0]).toMatch(/went wrong/i);
   });
   it('does nothing when the folder picker is cancelled', async () => {
     const src = join(root, 'stay.txt');
@@ -82,7 +92,7 @@ describe('actions', () => {
     const folder = join(root, 'tree');
     mkdirSync(join(folder, 'inner'), { recursive: true });
     const { d, notes } = deps({ pickFolder: async () => join(folder, 'inner') });
-    await runAction('copy', [folder], d);
+    await runAction('copy-to', [folder], d);
     expect(notes.join()).toMatch(/into itself/);
   });
   it('reports a failed terminal launch', async () => {

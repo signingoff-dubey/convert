@@ -55,6 +55,8 @@ export const STRINGS = {
     details: 'Details',
     notOnDisk: "This item isn't a file on disk.",
     paused: 'Convert is paused',
+    copiedToClipboard: (n: number) =>
+      n === 1 ? 'Copied to clipboard' : `${n} files copied to clipboard`,
     copied: (n: number) => (n === 1 ? 'Path copied' : `${n} paths copied`),
     movedTo: (n: number, dest: string) => `${n === 1 ? 'Moved' : `Moved ${n} files`} to ${dest}`,
     copiedTo: (n: number, dest: string) => `${n === 1 ? 'Copied' : `Copied ${n} files`} to ${dest}`,

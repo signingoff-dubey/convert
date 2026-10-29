@@ -6,7 +6,7 @@ import { resolveTheme, THEMES } from '../../renderer/theme/themes';
 export type PageName = 'overlay' | 'settings' | 'toast' | 'toolwin' | 'float';
 
 const CSP =
-  "default-src 'self'; img-src 'self' data: file:; style-src 'self' 'unsafe-inline'; media-src 'self' file:; connect-src 'none'";
+  "default-src 'self'; img-src 'self' data: convert-file:; style-src 'self' 'unsafe-inline'; media-src convert-file:; connect-src 'none'";
 
 /** Dev server URL from electron-vite, or null in a packaged build. */
 export function devUrl(): string | null {

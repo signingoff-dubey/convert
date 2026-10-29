@@ -7,13 +7,15 @@ import { logger } from './log';
 
 const log = logger('actions');
 
-export type ActionId = 'copy' | 'move' | 'copy-path' | 'terminal' | 'float' | 'reveal';
+export type ActionId = 'copy' | 'copy-to' | 'move' | 'copy-path' | 'terminal' | 'float' | 'reveal';
 
 /** Electron-facing operations, injected so the logic can be tested without Electron. */
 export interface ActionDeps {
   getSettings(): Settings;
   pickFolder(defaultPath: string | undefined): Promise<string | null>;
   writeClipboard(text: string): void;
+  /** Puts the files themselves on the clipboard, ready to paste in Explorer. */
+  copyFilesToClipboard(paths: string[]): Promise<boolean>;
   showItemInFolder(path: string): void;
   openTerminal(shell: Settings['output']['preferredShell'], path: string): Promise<unknown>;
   addToFloat(paths: string[]): void;
@@ -80,11 +82,16 @@ export async function runAction(id: ActionId, paths: string[], deps: ActionDeps)
       if (!opened) deps.notify(STRINGS.errors.E_UNKNOWN, 'error');
       return;
     }
+    case 'copy':
+      if (await deps.copyFilesToClipboard(paths))
+        deps.notify(STRINGS.toast.copiedToClipboard(paths.length));
+      else deps.notify(STRINGS.errors.E_UNKNOWN, 'error');
+      return;
     case 'float':
       deps.addToFloat(paths);
       deps.notify(STRINGS.toast.floated(paths.length));
       return;
-    case 'copy':
+    case 'copy-to':
     case 'move': {
       const recent = deps.recentFolders.get()[0];
       const folder = await deps.pickFolder(recent);

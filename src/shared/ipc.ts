@@ -12,6 +12,21 @@ export const ComboInput = z.object({
 });
 
 const Path = z.string().min(1).max(32767);
+
+export const ToolWindowName = z.enum([
+  'trim',
+  'split',
+  'merge',
+  'compress',
+  'redact',
+  'metadata',
+  'edit',
+  'crop',
+  'add-bg',
+  'annotate',
+  'collage',
+]);
+export type ToolWindowName = z.infer<typeof ToolWindowName>;
 const Verdict = z.object({
   status: z.enum(['ok', 'warning', 'blocked']),
   messages: z.array(z.string()),
@@ -39,42 +54,74 @@ export const CHANNELS = {
     request: z.undefined(),
     response: z.record(z.string(), Verdict),
   },
-  'combo:test:toggle': { request: z.object({ on: z.boolean() }), response: z.undefined() },
+  'combo:test:toggle': { request: z.object({ on: z.boolean() }), response: z.void() },
   'overlay:drop': {
     request: z.object({
       wheelId: WheelId,
       wedgeId: z.string().min(1).max(64),
       paths: z.array(Path).min(1).max(5000),
     }),
-    response: z.undefined(),
+    response: z.void(),
   },
-  'overlay:cancel': { request: z.undefined(), response: z.undefined() },
-  'job:cancel': { request: z.object({ jobId: z.string().max(64) }), response: z.undefined() },
-  'job:undo': { request: z.object({ jobId: z.string().max(64) }), response: z.undefined() },
-  'job:reveal': { request: z.object({ jobId: z.string().max(64) }), response: z.undefined() },
+  'overlay:cancel': { request: z.undefined(), response: z.void() },
+  'job:cancel': { request: z.object({ jobId: z.string().max(64) }), response: z.void() },
+  'job:undo': { request: z.object({ jobId: z.string().max(64) }), response: z.void() },
+  'job:reveal': { request: z.object({ jobId: z.string().max(64) }), response: z.void() },
+  'toast:dismiss': { request: z.object({ id: z.string().max(64) }), response: z.void() },
+  'dialog:pick-image': { request: z.undefined(), response: z.string().nullable() },
+  'meta:read': {
+    request: z.object({ path: Path }),
+    response: z.record(z.string(), z.union([z.string(), z.number()])),
+  },
+  'detect:text': {
+    request: z.object({ path: Path }),
+    response: z.array(z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() })),
+  },
+  'detect:face-model': {
+    request: z.undefined(),
+    response: z.object({
+      manifest: z.unknown(),
+      weights: z.custom<Uint8Array>((v) => v instanceof Uint8Array),
+    }),
+  },
+  'annotate:save': {
+    request: z.object({
+      sourcePath: Path,
+      data: z.instanceof(Uint8Array).refine((d) => d.byteLength > 8 && d.byteLength < 250_000_000),
+    }),
+    response: z.void(),
+  },
   'toolwin:run': {
     request: z.object({
-      tool: z.enum(['trim', 'split', 'merge']),
+      tool: ToolWindowName,
       paths: z.array(Path).min(1).max(500),
       params: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])),
     }),
-    response: z.undefined(),
+    response: z.void(),
   },
   'toolwin:probe': {
     request: z.object({ path: Path }),
     response: z.object({ durationSec: z.number().nullable(), pages: z.number().nullable() }),
   },
-  'toolwin:close': { request: z.undefined(), response: z.undefined() },
+  'toolwin:close': { request: z.undefined(), response: z.void() },
   'float:list': {
     request: z.undefined(),
     response: z.array(z.object({ path: Path, name: z.string() })),
   },
-  'float:remove': { request: z.object({ path: Path }), response: z.undefined() },
-  'float:clear': { request: z.undefined(), response: z.undefined() },
-  'float:drag': { request: z.object({ path: Path }), response: z.undefined() },
-  'float:close': { request: z.undefined(), response: z.undefined() },
+  'float:remove': { request: z.object({ path: Path }), response: z.void() },
+  'float:clear': { request: z.undefined(), response: z.void() },
+  'float:drag': { request: z.object({ path: Path }), response: z.void() },
+  'float:close': { request: z.undefined(), response: z.void() },
+  'float:dock': {
+    request: z.object({ edge: z.enum(['free', 'left', 'right', 'top', 'bottom']) }),
+    response: z.void(),
+  },
+  'float:state': {
+    request: z.undefined(),
+    response: z.object({ edge: z.enum(['free', 'left', 'right', 'top', 'bottom']) }),
+  },
   'dialog:pick-folder': { request: z.undefined(), response: z.string().nullable() },
-  'shell:open-logs': { request: z.undefined(), response: z.undefined() },
+  'shell:open-logs': { request: z.undefined(), response: z.void() },
   'engines:status': {
     request: z.undefined(),
     response: z.array(
@@ -99,10 +146,11 @@ export const CHANNELS = {
     }),
   },
   'app:licenses': { request: z.undefined(), response: z.string() },
-  'app:onboarding': { request: z.object({ on: z.boolean() }), response: z.undefined() },
-  'app:reset-first-run': { request: z.undefined(), response: z.undefined() },
-  'app:first-run-done': { request: z.undefined(), response: z.undefined() },
+  'app:onboarding': { request: z.object({ on: z.boolean() }), response: z.void() },
+  'app:reset-first-run': { request: z.undefined(), response: z.void() },
+  'app:first-run-done': { request: z.undefined(), response: z.void() },
   'app:sample-file': { request: z.undefined(), response: z.string() },
+  'app:sample-drag': { request: z.undefined(), response: z.void() },
 } as const;
 
 /** Events pushed from main to renderers. */
@@ -118,13 +166,15 @@ export const EVENTS = {
   'combo:test:event': z.object({ combo: z.string(), wheelId: WheelId.nullable() }),
   'toast:update': z.array(z.unknown()),
   'toolwin:init': z.object({
-    tool: z.enum(['trim', 'split', 'merge']),
+    tool: ToolWindowName,
     paths: z.array(Path),
   }),
   'float:changed': z.array(z.object({ path: Path, name: z.string() })),
 } as const;
 
 export type ChannelName = keyof typeof CHANNELS;
+
+export { WINDOW_ACCESS, type PageName } from './access';
 export type EventName = keyof typeof EVENTS;
 export type Request<C extends ChannelName> = z.infer<(typeof CHANNELS)[C]['request']>;
 export type Response<C extends ChannelName> = z.infer<(typeof CHANNELS)[C]['response']>;

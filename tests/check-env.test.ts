@@ -56,11 +56,7 @@ function fakeProject(
   }
   return root;
 }
-afterAll(() =>
-  roots.forEach((r) =>
-    rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }),
-  ),
-);
+afterAll(() => roots.forEach((r) => rmSync(r, { recursive: true, force: true })));
 
 const base = {
   platform: 'win32',

@@ -77,7 +77,7 @@ beforeAll(() => {
 afterAll(async () => {
   await shutdownExiftool();
   try {
-    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+    rmSync(dir, { recursive: true, force: true });
   } catch {
     // Windows keeps image files locked until the process ends; the OS temp folder is cleaned later.
   }

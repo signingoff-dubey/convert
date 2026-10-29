@@ -13,7 +13,7 @@ import { AppState } from '../src/main/services/state';
 import { defaultSettings } from '../src/main/settings/schema';
 
 const root = mkdtempSync(join(tmpdir(), 'convert-actions-'));
-afterAll(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }));
+afterAll(() => rmSync(root, { recursive: true, force: true }));
 
 function deps(over: Partial<ActionDeps> = {}) {
   const notes: string[] = [];

@@ -6,7 +6,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { buildEpub, readEpub, splitChapters, toXhtml } from '../src/main/engines/epub';
 
 const dir = mkdtempSync(join(tmpdir(), 'convert-epub-'));
-afterAll(() => rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }));
+afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 describe('epub', () => {
   it('writes a spec-shaped container with mimetype first and uncompressed', async () => {

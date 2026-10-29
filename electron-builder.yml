@@ -1,0 +1,57 @@
+# Per-user NSIS installer, no admin rights needed (docs/02 section 1).
+appId: com.convert.app
+productName: Convert
+copyright: Convert contributors
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**/*
+  - package.json
+  - '!**/*.map'
+  # The face detector library is bundled into the Redact window; only its model files are read at runtime.
+  - '!node_modules/@vladmandic/face-api/dist/**'
+  - '!node_modules/@vladmandic/face-api/types/**'
+  - '!node_modules/@vladmandic/face-api/src/**'
+asar: true
+# Every native module here (uiohook-napi, koffi, sharp, @napi-rs/canvas) ships prebuilt N-API binaries, so
+# nothing needs compiling and the packager must not ask for Visual Studio build tools.
+npmRebuild: false
+nodeGypRebuild: false
+buildDependenciesFromSource: false
+# Native modules and bundled programs must live outside app.asar so they can be loaded and executed.
+asarUnpack:
+  - node_modules/ffmpeg-static/**
+  - node_modules/7zip-bin/**
+  - node_modules/sharp/**
+  - node_modules/@img/**
+  - node_modules/koffi/**
+  - node_modules/uiohook-napi/**
+  - node_modules/@napi-rs/**
+  - node_modules/exiftool-vendored/**
+  - node_modules/exiftool-vendored.exe/**
+  - node_modules/exiftool-vendored.pl/**
+  - node_modules/@tesseract.js-data/**
+  - node_modules/tesseract.js-core/**
+  - node_modules/@vladmandic/face-api/model/**
+  - node_modules/pdfjs-dist/standard_fonts/**
+extraResources:
+  - from: docs/LICENSES.md
+    to: LICENSES.md
+win:
+  icon: build/icon.ico
+  target:
+    - target: nsis
+      arch: [x64]
+  # Unsigned by default. To sign, set CSC_LINK and CSC_KEY_PASSWORD (see docs/SIGNING.md).
+  signAndEditExecutable: true
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: false
+  createStartMenuShortcut: true
+  runAfterFinish: true
+  deleteAppDataOnUninstall: false
+  include: build/installer.nsh
+  artifactName: Convert-Setup-${version}.${ext}

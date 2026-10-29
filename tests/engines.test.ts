@@ -132,7 +132,11 @@ beforeAll(() => {
 afterAll(async () => {
   await shutdownExiftool();
   await shutdownOcr();
-  rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  try {
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  } catch {
+    // Windows keeps image files locked until the process ends; the OS temp folder is cleaned later.
+  }
 });
 
 describe('images', () => {

@@ -76,7 +76,11 @@ beforeAll(() => {
 });
 afterAll(async () => {
   await shutdownExiftool();
-  rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  try {
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  } catch {
+    // Windows keeps image files locked until the process ends; the OS temp folder is cleaned later.
+  }
 });
 
 describe('crop', () => {
@@ -412,10 +416,13 @@ describe('svg and heic', () => {
     const out = ok(await first('png', 'convert', [svg]));
     expect((await sharp(out).metadata()).width).toBeGreaterThan(30);
   });
-  it('reports a missing HEIC encoder cleanly (no Windows imaging here)', async () => {
-    const res = await first('heic', 'convert', [await photo('h1.png')]);
-    expect(res.error?.code).toBe('E_ENGINE_MISSING');
-  });
+  it.skipIf(process.platform === 'win32')(
+    'reports a missing HEIC encoder cleanly (no Windows imaging here)',
+    async () => {
+      const res = await first('heic', 'convert', [await photo('h1.png')]);
+      expect(res.error?.code).toBe('E_ENGINE_MISSING');
+    },
+  );
 });
 
 describe('mov, avi, wmv and gif input', () => {

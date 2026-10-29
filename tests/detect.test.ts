@@ -8,7 +8,11 @@ import { detectTextBoxes, readFaceModel, shutdownDetectors } from '../src/main/e
 const dir = mkdtempSync(join(tmpdir(), 'convert-detect-'));
 afterAll(async () => {
   await shutdownDetectors();
-  rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  try {
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  } catch {
+    // Windows keeps image files locked until the process ends; the OS temp folder is cleaned later.
+  }
 });
 
 describe('text detection (offline OCR)', () => {

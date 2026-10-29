@@ -116,7 +116,10 @@ export class TriggerEngine {
       this.lastCursor = { x: e.x, y: e.y };
       const settings = this.deps.getSettings();
       const rootClass = this.deps.win32.windowClassAt(e.x, e.y);
+      // If the window class cannot be read at all (Win32 bridge failed to load), gating cannot work, and a
+      // silent "never opens" is worse than opening: drops with no file path are ignored anyway.
       const allowed =
+        !this.deps.win32.available ||
         isSourceAllowed(rootClass, settings.general) ||
         (rootClass !== null && this.extraClasses.includes(rootClass));
       this.dispatch({

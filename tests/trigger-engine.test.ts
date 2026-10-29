@@ -93,6 +93,13 @@ describe('TriggerEngine', () => {
     fire.key({ keycode: C, shift: true });
     expect(overlay.open).not.toHaveBeenCalled();
   });
+  it('opens from any window when the Win32 bridge is unavailable, instead of never opening', () => {
+    const { fire, overlay } = make({ ...unavailableWin32 });
+    fire.down();
+    fire.move(20);
+    fire.key({ keycode: C, shift: true });
+    expect(overlay.open).toHaveBeenCalledTimes(1);
+  });
   it('runs the job with the dropped paths and closes the overlay', () => {
     const { fire, overlay, onRunJob, engine } = make();
     fire.down();

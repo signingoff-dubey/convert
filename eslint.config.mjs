@@ -5,6 +5,11 @@ export default tseslint.config(
   ...tseslint.configs.strict,
   { rules: { '@typescript-eslint/no-explicit-any': 'error' } },
   {
+    // CommonJS scripts use require by design.
+    files: ['**/*.cjs'],
+    rules: { '@typescript-eslint/no-require-imports': 'off' },
+  },
+  {
     // Tests index into fixtures they just built, and mock classes can be empty.
     files: ['tests/**/*.ts'],
     rules: {

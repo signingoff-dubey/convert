@@ -187,8 +187,14 @@ async function main(): Promise<void> {
   await overlay.create();
 
   const applyPause = (): void => {
-    if (settings.get().general.paused) trigger.stop();
-    else trigger.start();
+    try {
+      if (settings.get().general.paused) trigger.stop();
+      else trigger.start();
+    } catch (error) {
+      // A hook that cannot start must not take the whole app down; Settings and the tray still work.
+      log.error('could not change the state of the global hooks', error);
+      toasts.info('Global input hooks could not start, so the wheel is unavailable.', 'error');
+    }
     tray.refresh();
   };
 

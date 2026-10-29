@@ -25,13 +25,28 @@ const AUDIO_COMPRESS: Record<string, string[]> = {
   aiff: ['-c:a', 'pcm_s16be', '-ar', '22050'],
 };
 
+/** H.264 and VP9 need even dimensions and 4:2:0 pixels to play everywhere; GIF input often has neither. */
+const EVEN_420 = ['-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2', '-pix_fmt', 'yuv420p'];
+
 function videoCodecs(ext: string, crf: number): string[] {
   if (ext === 'webm') {
-    return ['-c:v', 'libvpx-vp9', '-crf', String(crf + 9), '-b:v', '0', '-c:a', 'libopus'];
+    return [
+      ...EVEN_420,
+      '-c:v',
+      'libvpx-vp9',
+      '-crf',
+      String(crf + 9),
+      '-b:v',
+      '0',
+      '-c:a',
+      'libopus',
+    ];
   }
-  if (ext === 'wmv') return ['-c:v', 'wmv2', '-c:a', 'wmav2'];
-  if (ext === 'avi') return ['-c:v', 'libx264', '-crf', String(crf), '-c:a', 'libmp3lame'];
+  if (ext === 'wmv') return [...EVEN_420, '-c:v', 'wmv2', '-c:a', 'wmav2'];
+  if (ext === 'avi')
+    return [...EVEN_420, '-c:v', 'libx264', '-crf', String(crf), '-c:a', 'libmp3lame'];
   return [
+    ...EVEN_420,
     '-c:v',
     'libx264',
     '-crf',
@@ -40,7 +55,7 @@ function videoCodecs(ext: string, crf: number): string[] {
     'medium',
     '-c:a',
     'aac',
-    ...(ext === 'mp4' ? ['-movflags', '+faststart'] : []),
+    ...(ext === 'mp4' || ext === 'mov' ? ['-movflags', '+faststart'] : []),
   ];
 }
 
@@ -49,7 +64,7 @@ export type MediaKind = 'audio' | 'video';
 export function mediaKindOf(path: string): MediaKind | null {
   const ext = extensionOf(path);
   if (ext in AUDIO_CODECS) return 'audio';
-  if (['mp4', 'mov', 'mkv', 'webm', 'avi', 'wmv'].includes(ext)) return 'video';
+  if (['mp4', 'mov', 'mkv', 'webm', 'avi', 'wmv', 'gif'].includes(ext)) return 'video';
   return null;
 }
 
@@ -76,16 +91,8 @@ export function buildFfmpegArgs({ op, input, output, outExt }: BuildArgs): strin
     if (kind === 'video' && outExt === 'gif') return [...head, '-vf', GIF_FILTER, '-an', output];
     if (kind === 'video' && outExt === 'mp3')
       return [...head, '-vn', ...(AUDIO_CODECS.mp3 ?? []), output];
-    if (kind === 'video' && ['mp4', 'webm', 'mkv'].includes(outExt)) {
-      return [
-        ...head,
-        '-map',
-        '0:v:0',
-        '-map',
-        '0:a?',
-        ...videoCodecs(outExt === 'mkv' ? 'mkv' : outExt, 23),
-        output,
-      ];
+    if (kind === 'video' && ['mp4', 'mov', 'mkv', 'webm', 'avi', 'wmv'].includes(outExt)) {
+      return [...head, '-map', '0:v:0', '-map', '0:a?', ...videoCodecs(outExt, 23), output];
     }
     if (kind === 'audio' && outExt in AUDIO_CODECS) {
       return [...head, '-vn', '-map_metadata', '0', ...(AUDIO_CODECS[outExt] ?? []), output];

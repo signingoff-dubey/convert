@@ -12,8 +12,9 @@ import {
   type RunResult,
 } from '../jobs/types';
 import { dynamicImport } from './esm';
+import { buildEpub } from './epub';
 
-const CONVERT = new Set(['png', 'jpg', 'txt', 'md']);
+const CONVERT = new Set(['png', 'jpg', 'txt', 'md', 'epub', 'xlsx']);
 const TOOLS = new Set(['compress', 'split', 'merge']);
 const DPI = 300;
 
@@ -57,6 +58,89 @@ async function loadPdfLib(path: string): Promise<PDFDocument> {
   }
 }
 
+export interface TextItem {
+  str?: string;
+  hasEOL?: boolean;
+  /** [a, b, c, d, x, y] in PDF points; y grows upward. */
+  transform?: number[];
+  width?: number;
+  height?: number;
+}
+
+interface LineItem {
+  str: string;
+  x: number;
+  width: number;
+}
+
+interface Line {
+  y: number;
+  height: number;
+  items: LineItem[];
+}
+
+/** Groups text items into lines top to bottom, items left to right. */
+export function groupLines(items: readonly TextItem[], tolerance = 3): Line[] {
+  const lines: Line[] = [];
+  for (const it of items) {
+    const str = it.str ?? '';
+    if (str.trim() === '' || !it.transform) continue;
+    const x = it.transform[4] ?? 0;
+    const y = it.transform[5] ?? 0;
+    const line = lines.find((l) => Math.abs(l.y - y) <= tolerance);
+    const entry = { str, x, width: it.width ?? str.length * 5 };
+    if (line) line.items.push(entry);
+    else lines.push({ y, height: it.height ?? 10, items: [entry] });
+  }
+  for (const l of lines) l.items.sort((a, b) => a.x - b.x);
+  return lines.sort((a, b) => b.y - a.y);
+}
+
+/** Splits each line into cells wherever the horizontal gap is wider than a few characters. */
+export function rowsFromTextItems(items: readonly TextItem[], gap = 12): string[][] {
+  return groupLines(items).map((line) => {
+    const cells: string[] = [];
+    let end = Number.NEGATIVE_INFINITY;
+    for (const it of line.items) {
+      if (cells.length === 0 || it.x - end > gap) cells.push(it.str.trim());
+      else
+        cells[cells.length - 1] = `${cells[cells.length - 1]} ${it.str}`
+          .replace(/\s+/g, ' ')
+          .trim();
+      end = it.x + it.width;
+    }
+    return cells;
+  });
+}
+
+/** Rebuilds paragraphs from hard-wrapped lines using vertical gaps; joins hyphenated line breaks. */
+export function paragraphsFromItems(items: readonly TextItem[]): string[] {
+  const lines = groupLines(items);
+  if (lines.length === 0) return [];
+  const gaps = lines
+    .slice(1)
+    .map((l, i) => (lines[i] as Line).y - l.y)
+    .sort((a, b) => a - b);
+  const typical = gaps[Math.floor(gaps.length / 2)] ?? 12;
+  const paragraphs: string[] = [];
+  let current = '';
+  lines.forEach((line, i) => {
+    const text = line.items
+      .map((x) => x.str)
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const gap = i === 0 ? 0 : (lines[i - 1] as Line).y - line.y;
+    if (i > 0 && gap > typical * 1.6) {
+      paragraphs.push(current);
+      current = text;
+    } else if (current.endsWith('-') && /^[a-z]/.test(text)) current = current.slice(0, -1) + text;
+    else current = current === '' ? text : `${current} ${text}`;
+  });
+  if (current !== '') paragraphs.push(current);
+  return paragraphs;
+}
+
 interface PdfJs {
   getDocument(o: Record<string, unknown>): {
     promise: Promise<PdfDocument>;
@@ -72,7 +156,7 @@ interface PdfDocument {
 interface PdfPage {
   getViewport(o: { scale: number }): { width: number; height: number };
   render(o: Record<string, unknown>): { promise: Promise<void> };
-  getTextContent(): Promise<{ items: { str?: string; hasEOL?: boolean }[] }>;
+  getTextContent(): Promise<{ items: TextItem[] }>;
   cleanup(): void;
 }
 
@@ -96,7 +180,11 @@ async function openWithPdfJs(path: string): Promise<PdfDocument> {
   }
 }
 
-async function renderPages(input: string, ext: 'png' | 'jpg', ctx: RunContext): Promise<void> {
+export async function renderPages(
+  input: string,
+  ext: 'png' | 'jpg',
+  ctx: RunContext,
+): Promise<void> {
   const { createCanvas } = nodeRequire('@napi-rs/canvas') as typeof import('@napi-rs/canvas');
   const doc = await openWithPdfJs(input);
   try {
@@ -140,6 +228,65 @@ async function extractText(input: string, markdown: boolean, ctx: RunContext): P
       ctx.onProgress(Math.round((n / doc.numPages) * 100));
     }
     await writeFile(ctx.tempPath, parts.join(markdown ? '\n\n---\n\n' : '\n\n') + '\n', 'utf8');
+  } finally {
+    await doc.release();
+  }
+}
+
+async function toEpub(input: string, ctx: RunContext): Promise<void> {
+  const doc = await openWithPdfJs(input);
+  try {
+    const title = basename(input).replace(/\.[^.]+$/, '');
+    const html: string[] = [];
+    for (let n = 1; n <= doc.numPages; n++) {
+      if (ctx.signal.aborted) throw new JobError('E_CANCELLED');
+      const page = await doc.getPage(n);
+      const paras = paragraphsFromItems((await page.getTextContent()).items);
+      html.push(paras.map((p) => `<p>${escapeXml(p)}</p>`).join('\n'));
+      page.cleanup();
+      ctx.onProgress(Math.round((n / doc.numPages) * 100));
+    }
+    const body = html.join('\n<hr/>\n');
+    if (body.replace(/<[^>]+>|\s/g, '') === '') {
+      throw new JobError('E_UNSUPPORTED', 'this PDF has no text to put in an EPUB (is it a scan?)');
+    }
+    await writeFile(
+      ctx.tempPath,
+      await buildEpub({
+        title,
+        chapters: [{ title, html: `<h1>${escapeXml(title)}</h1>\n${body}` }],
+      }),
+    );
+  } finally {
+    await doc.release();
+  }
+}
+
+const escapeXml = (s: string): string =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/** Best effort: text positions become rows and cells, one worksheet per page. */
+async function toXlsx(input: string, ctx: RunContext): Promise<void> {
+  const ExcelJS = nodeRequire('exceljs') as typeof import('exceljs');
+  const doc = await openWithPdfJs(input);
+  try {
+    const wb = new ExcelJS.Workbook();
+    let any = false;
+    for (let n = 1; n <= doc.numPages; n++) {
+      if (ctx.signal.aborted) throw new JobError('E_CANCELLED');
+      const page = await doc.getPage(n);
+      const rows = rowsFromTextItems((await page.getTextContent()).items);
+      if (rows.length > 0) any = true;
+      wb.addWorksheet(`Page ${n}`).addRows(rows);
+      page.cleanup();
+      ctx.onProgress(Math.round((n / doc.numPages) * 100));
+    }
+    if (!any)
+      throw new JobError(
+        'E_UNSUPPORTED',
+        'this PDF has no text to put in a spreadsheet (is it a scan?)',
+      );
+    await wb.xlsx.writeFile(ctx.tempPath);
   } finally {
     await doc.release();
   }
@@ -191,6 +338,8 @@ export const pdfEngine: Engine = {
     try {
       if (op.kind === 'convert') {
         if (op.id === 'png' || op.id === 'jpg') return await renderPages(input, op.id, ctx);
+        if (op.id === 'epub') return await toEpub(input, ctx);
+        if (op.id === 'xlsx') return await toXlsx(input, ctx);
         return await extractText(input, op.id === 'md', ctx);
       }
       if (op.id === 'split') return await split(input, op, ctx);

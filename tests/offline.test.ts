@@ -3,7 +3,11 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 // AGENTS.md: no network calls from the shipped app. Only documentation links are allowed.
+// XML namespace identifiers are names, not addresses: nothing ever fetches them.
 const ALLOWED = [
+  /^http:\/\/www\.w3\.org\/1999\/xhtml$/,
+  /^http:\/\/www\.idpf\.org\/2007\/(ops|opf)$/,
+  /^http:\/\/purl\.org\/dc\/elements\/1\.1\/$/,
   /^https:\/\/github\.com\/signingoff-dubey\/convert/,
   /^http:\/\/www\.w3\.org\/2000\/svg$/,
 ];

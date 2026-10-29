@@ -5,9 +5,12 @@ import { extensionOf } from '../../shared/formats';
 import { JobError, type Engine, type Operation } from '../jobs/types';
 import { execFileSafe } from './exec';
 import { dynamicImport } from './esm';
+import { buildEpub, readEpub, splitChapters } from './epub';
+import { rtfToText } from './rtf';
+import { officeConvert } from './office';
 
-const DOC_EXTS = new Set(['docx', 'md', 'txt', 'html']);
-const TARGETS = new Set(['pdf', 'txt', 'md', 'html', 'docx']);
+const DOC_EXTS = new Set(['docx', 'md', 'txt', 'html', 'rtf', 'epub']);
+const TARGETS = new Set(['pdf', 'txt', 'md', 'html', 'docx', 'epub']);
 
 const escapeHtml = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -197,51 +200,59 @@ async function mdToDocx(md: string, outPath: string): Promise<void> {
   await writeFile(outPath, await docx.Packer.toBuffer(doc));
 }
 
-/** Everything funnels through Markdown or HTML so each pair needs one small step, not N x N code. */
-async function toMarkdown(input: string, ext: string): Promise<string> {
-  const text = ext === 'docx' ? '' : await readFile(input, 'utf8');
-  if (ext === 'docx') return htmlToMd(await docxToHtml(input));
-  if (ext === 'html') return htmlToMd(text);
-  return text.replace(/^﻿/, '');
-}
+type Ctx = Parameters<Engine['run']>[2];
 
-async function toHtml(input: string, ext: string): Promise<string> {
-  if (ext === 'docx') return docxToHtml(input);
-  const text = await readFile(input, 'utf8');
-  if (ext === 'html') return text;
-  if (ext === 'md') return (await marked()).parse(text);
-  return text
+const paragraphs = (text: string): string =>
+  text
     .split(/\n{2,}/)
     .map((p) => `<p>${escapeHtml(p).replace(/\n/g, '<br>')}</p>`)
     .join('\n');
-}
 
-async function viaOffice(
+/** Body HTML for any document input. Everything else is built from this, so each format pair is one small step. */
+async function sourceHtml(
   input: string,
   ext: string,
-  ctx: Parameters<Engine['run']>[2],
-): Promise<void> {
-  if (!ctx.officePath) throw new JobError('E_ENGINE_MISSING', 'LibreOffice');
-  const work = join(ctx.tempDir, 'office');
-  await mkdir(work, { recursive: true });
-  let source = input;
-  if (ext === 'md') {
-    source = join(work, `${basename(input, '.md')}.html`);
-    await writeFile(source, page(basename(input), await toHtml(input, 'md')), 'utf8');
+  ctx: Ctx,
+): Promise<{ title: string; html: string }> {
+  const fallbackTitle = basename(input).replace(/\.[^.]+$/, '');
+  if (ext === 'docx') return { title: fallbackTitle, html: await docxToHtml(input) };
+  if (ext === 'epub') return readEpub(input);
+  if (ext === 'rtf') {
+    if (ctx.officePath) {
+      const produced = await officeConvert(ctx.officePath, input, 'html', ctx.tempDir, ctx.signal);
+      return { title: fallbackTitle, html: await readFile(produced, 'utf8') };
+    }
+    return { title: fallbackTitle, html: paragraphs(rtfToText(await readFile(input, 'latin1'))) };
   }
-  const res = await execFileSafe(
-    ctx.officePath,
-    ['--headless', '--convert-to', 'pdf', '--outdir', work, source],
-    { signal: ctx.signal },
-  );
-  if (res.code !== 0) throw new JobError('E_UNKNOWN', res.stderr.slice(-300));
-  const produced = join(work, `${basename(source).replace(/\.[^.]+$/, '')}.pdf`);
+  const text = (await readFile(input, 'utf8')).replace(/^﻿/, '');
+  if (ext === 'html') return { title: fallbackTitle, html: text };
+  if (ext === 'md') return { title: fallbackTitle, html: (await marked()).parse(text) };
+  return { title: fallbackTitle, html: paragraphs(text) };
+}
+
+async function toMarkdown(input: string, ext: string, ctx: Ctx): Promise<string> {
+  if (ext === 'md' || ext === 'txt') return (await readFile(input, 'utf8')).replace(/^﻿/, '');
+  return htmlToMd((await sourceHtml(input, ext, ctx)).html);
+}
+
+async function toPdf(input: string, ext: string, ctx: Ctx): Promise<void> {
+  if (!ctx.officePath) throw new JobError('E_ENGINE_MISSING', 'LibreOffice');
+  let source = input;
+  if (ext === 'md' || ext === 'epub') {
+    // LibreOffice cannot read these directly, so hand it an HTML rendition.
+    const { title, html } = await sourceHtml(input, ext, ctx);
+    const work = join(ctx.tempDir, 'src');
+    await mkdir(work, { recursive: true });
+    source = join(work, `${basename(input).replace(/\.[^.]+$/, '')}.html`);
+    await writeFile(source, page(title, html), 'utf8');
+  }
+  const produced = await officeConvert(ctx.officePath, source, 'pdf', ctx.tempDir, ctx.signal);
   await copyFile(produced, ctx.tempPath);
-  await rm(work, { recursive: true, force: true });
 }
 
 export function docsCanHandle(op: Operation, input: string): boolean {
-  return op.kind === 'convert' && DOC_EXTS.has(extensionOf(input)) && TARGETS.has(op.id);
+  const ext = extensionOf(input);
+  return op.kind === 'convert' && DOC_EXTS.has(ext) && TARGETS.has(op.id) && ext !== op.id;
 }
 
 export const docsEngine: Engine = {
@@ -249,31 +260,45 @@ export const docsEngine: Engine = {
   canHandle: docsCanHandle,
   async run(op, input, ctx) {
     const ext = extensionOf(input);
-    if (op.id === 'pdf') return viaOffice(input, ext, ctx);
-    if (op.id === 'txt') {
-      if (ext === 'docx') {
-        const mammoth = nodeRequire('mammoth') as typeof import('mammoth');
-        const raw = await mammoth.extractRawText({ path: input }).catch((e: unknown) => {
-          throw new JobError('E_CORRUPT_INPUT', e instanceof Error ? e.message : 'docx');
-        });
-        return writeFile(ctx.tempPath, raw.value, 'utf8');
+    switch (op.id) {
+      case 'pdf':
+        return toPdf(input, ext, ctx);
+      case 'txt': {
+        if (ext === 'docx') {
+          const mammoth = nodeRequire('mammoth') as typeof import('mammoth');
+          const raw = await mammoth.extractRawText({ path: input }).catch((e: unknown) => {
+            throw new JobError('E_CORRUPT_INPUT', e instanceof Error ? e.message : 'docx');
+          });
+          return writeFile(ctx.tempPath, raw.value, 'utf8');
+        }
+        if (ext === 'md')
+          return writeFile(ctx.tempPath, mdToText(await readFile(input, 'utf8')), 'utf8');
+        if (ext === 'rtf' && !ctx.officePath) {
+          return writeFile(ctx.tempPath, rtfToText(await readFile(input, 'latin1')), 'utf8');
+        }
+        return writeFile(
+          ctx.tempPath,
+          htmlToText((await sourceHtml(input, ext, ctx)).html),
+          'utf8',
+        );
       }
-      const text = await readFile(input, 'utf8');
-      return writeFile(
-        ctx.tempPath,
-        ext === 'html' ? htmlToText(text) : ext === 'md' ? mdToText(text) : text,
-        'utf8',
-      );
+      case 'md':
+        return writeFile(ctx.tempPath, await toMarkdown(input, ext, ctx), 'utf8');
+      case 'html': {
+        const { title, html } = await sourceHtml(input, ext, ctx);
+        return writeFile(ctx.tempPath, ext === 'html' ? html : page(title, html), 'utf8');
+      }
+      case 'docx':
+        return mdToDocx(await toMarkdown(input, ext, ctx), ctx.tempPath);
+      case 'epub': {
+        const { title, html } = await sourceHtml(input, ext, ctx);
+        return writeFile(
+          ctx.tempPath,
+          await buildEpub({ title, chapters: splitChapters(html, title) }),
+        );
+      }
+      default:
+        throw new JobError('E_UNSUPPORTED', `${ext} to ${op.id}`);
     }
-    if (op.id === 'md') return writeFile(ctx.tempPath, await toMarkdown(input, ext), 'utf8');
-    if (op.id === 'html') {
-      return writeFile(
-        ctx.tempPath,
-        ext === 'html' ? await readFile(input) : page(basename(input), await toHtml(input, ext)),
-        'utf8',
-      );
-    }
-    if (op.id === 'docx') return mdToDocx(await toMarkdown(input, ext), ctx.tempPath);
-    throw new JobError('E_UNSUPPORTED', `${ext} to ${op.id}`);
   },
 };

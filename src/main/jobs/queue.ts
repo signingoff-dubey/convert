@@ -7,7 +7,7 @@ import { link, lstat, mkdir, rename, rm, unlink } from 'node:fs/promises';
 import type { Settings } from '../settings/schema';
 import { logger } from '../services/log';
 import { NamingError, resolveOutput, resolveOutputDir } from './naming';
-import { MULTI_INPUT_OPS, planOutput, selectEngine } from './operations';
+import { isMultiInput, planOutput, selectEngine } from './operations';
 import {
   JobError,
   type ErrorCode,
@@ -110,7 +110,7 @@ export class JobQueue extends EventEmitter {
   /** A multi-file drop becomes N jobs under one batch id, except operations that need the whole set. */
   enqueue(op: Operation, paths: readonly string[]): { batchId: string; jobIds: string[] } {
     const batchId = randomUUID();
-    const inputs = MULTI_INPUT_OPS.has(op.id) ? [[...paths]] : paths.map((p) => [p]);
+    const inputs = isMultiInput(op, paths) ? [[...paths]] : paths.map((p) => [p]);
     const ids = inputs.map((group) => {
       const job: Job = {
         id: randomUUID(),

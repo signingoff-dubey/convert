@@ -91,9 +91,15 @@ export const CHANNELS = {
   'engines:detect-office': { request: z.undefined(), response: z.string().nullable() },
   'app:meta': {
     request: z.undefined(),
-    response: z.object({ version: z.string(), platform: z.string(), prefersDark: z.boolean() }),
+    response: z.object({
+      version: z.string(),
+      platform: z.string(),
+      prefersDark: z.boolean(),
+      firstRun: z.boolean(),
+    }),
   },
   'app:licenses': { request: z.undefined(), response: z.string() },
+  'app:onboarding': { request: z.object({ on: z.boolean() }), response: z.undefined() },
   'app:reset-first-run': { request: z.undefined(), response: z.undefined() },
   'app:first-run-done': { request: z.undefined(), response: z.undefined() },
   'app:sample-file': { request: z.undefined(), response: z.string() },

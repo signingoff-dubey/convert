@@ -21,6 +21,18 @@ describe('buildFfmpegArgs', () => {
   it('uses 192k for audio to mp3', () => {
     expect(args(convert('mp3'), 'a.wav', 'mp3').join(' ')).toContain('libmp3lame -b:a 192k');
   });
+  it('makes every H.264 or VP9 output playable: even size and 4:2:0', () => {
+    for (const ext of ['mp4', 'mov', 'mkv', 'webm', 'avi']) {
+      const j = args(convert(ext), 'a.gif', ext).join(' ');
+      expect(j, ext).toContain('trunc(iw/2)*2');
+      expect(j, ext).toContain('yuv420p');
+    }
+  });
+  it('writes mov, avi and wmv with matching codecs', () => {
+    expect(args(convert('wmv'), 'a.mp4', 'wmv').join(' ')).toContain('wmv2');
+    expect(args(convert('avi'), 'a.mp4', 'avi').join(' ')).toContain('libmp3lame');
+    expect(args(convert('mov'), 'a.mkv', 'mov').join(' ')).toContain('libx264');
+  });
   it('uses H.264, AAC, faststart and CRF 23 for video to mp4', () => {
     const j = args(convert('mp4'), 'a.mov', 'mp4').join(' ');
     expect(j).toContain('libx264 -crf 23');

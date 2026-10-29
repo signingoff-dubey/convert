@@ -1,7 +1,16 @@
 import { STRINGS } from './strings';
 
 export type Category =
-  'image' | 'audio' | 'video' | 'pdf' | 'document' | 'spreadsheet' | 'subtitles' | 'archive';
+  | 'image'
+  | 'audio'
+  | 'video'
+  | 'pdf'
+  | 'document'
+  | 'slides'
+  | 'spreadsheet'
+  | 'epub'
+  | 'subtitles'
+  | 'archive';
 
 export type WheelId = 'convert' | 'tools' | 'actions';
 
@@ -18,6 +27,8 @@ export interface Target {
   label: string;
   /** Hidden unless the optional Office engine is available. */
   needsOffice?: boolean;
+  /** Hidden unless this machine can encode HEIC (Windows HEIF extension). */
+  needsHeicEncoder?: boolean;
 }
 
 export interface Tool {
@@ -28,6 +39,8 @@ export interface Tool {
   /** Minimum and maximum number of selected files the tool accepts. */
   minFiles?: number;
   maxFiles?: number;
+  /** Short description for the Features page. */
+  description?: string;
 }
 
 export type DisabledReason = 'empty' | 'mixed-categories' | 'folder' | 'unknown-type' | 'no-tools';
@@ -37,18 +50,27 @@ export type WheelResult<T> =
   | { status: 'disabled'; reason: DisabledReason; hint: string };
 
 export const EXTENSIONS: Record<Category, readonly string[]> = {
-  image: ['jpg', 'jpeg', 'png', 'webp', 'heic', 'tif', 'tiff', 'avif', 'bmp'],
-  audio: ['mp3', 'm4a', 'wav', 'flac', 'ogg', 'opus', 'wma', 'aiff'],
-  video: ['mp4', 'mov', 'mkv', 'webm', 'avi', 'wmv'],
+  image: ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'tif', 'tiff', 'avif', 'bmp', 'svg'],
+  audio: ['mp3', 'm4a', 'wav', 'flac', 'ogg', 'opus', 'wma', 'aiff', 'aif'],
+  video: ['mp4', 'mov', 'mkv', 'webm', 'avi', 'wmv', 'gif'],
   pdf: ['pdf'],
-  document: ['docx', 'md', 'txt', 'html', 'htm'],
-  spreadsheet: ['xlsx', 'csv', 'tsv'],
+  document: ['docx', 'md', 'txt', 'html', 'htm', 'rtf'],
+  slides: ['ppt', 'pptx'],
+  spreadsheet: ['xlsx', 'xls', 'ods', 'csv', 'tsv'],
+  epub: ['epub'],
   subtitles: ['srt', 'vtt'],
-  archive: ['zip', 'tar', 'gz', 'rar'],
+  archive: ['zip', 'tar', 'gz', 'tgz', 'rar'],
 };
 
 /** Extensions that name the same format. */
-const ALIASES: Record<string, string> = { jpeg: 'jpg', tif: 'tiff', htm: 'html' };
+const ALIASES: Record<string, string> = {
+  jpeg: 'jpg',
+  tif: 'tiff',
+  htm: 'html',
+  heif: 'heic',
+  aif: 'aiff',
+  tgz: 'gz',
+};
 
 const t = (id: string, label: string, extra: Partial<Target> = {}): Target => ({
   id,
@@ -57,14 +79,15 @@ const t = (id: string, label: string, extra: Partial<Target> = {}): Target => ({
   ...extra,
 });
 
-/** Default wedge order per source category (docs/01 section 4.1). */
+/** Default wedge order per source category. A wheel never shows the source's own format. */
 export const CONVERT_TARGETS: Record<Category, readonly Target[]> = {
   image: [
     t('png', 'PNG'),
     t('jpg', 'JPG'),
     t('webp', 'WebP'),
-    t('avif', 'AVIF'),
+    t('heic', 'HEIC', { needsHeicEncoder: true }),
     t('tiff', 'TIFF'),
+    t('avif', 'AVIF'),
     t('bmp', 'BMP'),
     t('pdf', 'PDF'),
   ],
@@ -75,40 +98,127 @@ export const CONVERT_TARGETS: Record<Category, readonly Target[]> = {
     t('flac', 'FLAC'),
     t('ogg', 'OGG'),
     t('opus', 'Opus'),
+    t('aiff', 'AIFF'),
+    t('wma', 'WMA'),
   ],
   video: [
     t('mp4', 'MP4'),
-    t('webm', 'WebM'),
+    t('mov', 'MOV'),
     t('mkv', 'MKV'),
+    t('webm', 'WebM'),
+    t('avi', 'AVI'),
+    t('wmv', 'WMV'),
     t('gif', 'GIF'),
     t('mp3', 'MP3 (extract audio)'),
   ],
-  pdf: [t('png', 'PNG'), t('jpg', 'JPG'), t('txt', 'TXT'), t('md', 'MD')],
-  document: [
-    t('pdf', 'PDF', { needsOffice: true }),
+  pdf: [
+    t('docx', 'DOCX', { needsOffice: true }),
+    t('pptx', 'PPTX', { needsOffice: true }),
+    t('xlsx', 'XLSX'),
+    t('jpg', 'JPG'),
+    t('png', 'PNG'),
+    t('epub', 'EPUB'),
     t('txt', 'TXT'),
     t('md', 'MD'),
-    t('html', 'HTML'),
-    t('docx', 'DOCX'),
   ],
-  spreadsheet: [t('xlsx', 'XLSX'), t('csv', 'CSV'), t('tsv', 'TSV')],
+  document: [
+    t('pdf', 'PDF', { needsOffice: true }),
+    t('docx', 'DOCX'),
+    t('md', 'MD'),
+    t('txt', 'TXT'),
+    t('html', 'HTML'),
+    t('epub', 'EPUB'),
+  ],
+  slides: [
+    t('pdf', 'PDF', { needsOffice: true }),
+    t('jpg', 'JPG', { needsOffice: true }),
+    t('png', 'PNG', { needsOffice: true }),
+    t('pptx', 'PPTX', { needsOffice: true }),
+  ],
+  spreadsheet: [
+    t('xlsx', 'XLSX'),
+    t('ods', 'ODS', { needsOffice: true }),
+    t('csv', 'CSV'),
+    t('tsv', 'TSV'),
+    t('pdf', 'PDF', { needsOffice: true }),
+  ],
+  epub: [
+    t('docx', 'DOCX'),
+    t('md', 'MD'),
+    t('txt', 'TXT'),
+    t('html', 'HTML'),
+    t('pdf', 'PDF', { needsOffice: true }),
+  ],
   subtitles: [t('srt', 'SRT'), t('vtt', 'VTT'), t('txt', 'TXT')],
   archive: [
     { id: 'extract-here', ext: null, label: 'Extract here' },
     t('zip', 'ZIP'),
     t('tar', 'TAR'),
-    t('gz', 'GZ'),
+    t('gz', 'GZIP'),
   ],
 };
 
-/** Tools wheel, v1 only (docs/01 section 4.2). */
+/** Tools wheel (docs/01 section 4.2, extended with the editors from the product reference). */
 export const TOOLS: Partial<Record<Category, readonly Tool[]>> = {
   image: [
-    { id: 'compress', label: 'Compress' },
-    { id: 'resize', label: 'Resize' },
-    { id: 'rotate', label: 'Rotate' },
-    { id: 'flip', label: 'Flip' },
-    { id: 'strip-metadata', label: 'Strip metadata' },
+    {
+      id: 'compress',
+      label: 'Compress',
+      opensWindow: true,
+      description:
+        'Choose a target file size, percentage reduction, or preset. Resize while compressing.',
+    },
+    {
+      id: 'redact',
+      label: 'Redact',
+      opensWindow: true,
+      maxFiles: 1,
+      description:
+        'Detect faces or text locally, then cover private areas with a solid color or blur.',
+    },
+    {
+      id: 'metadata',
+      label: 'Metadata',
+      opensWindow: true,
+      maxFiles: 1,
+      description: 'Edit camera and location tags, or remove metadata.',
+    },
+    {
+      id: 'edit',
+      label: 'Edit',
+      opensWindow: true,
+      maxFiles: 1,
+      description: 'Adjust exposure, color, detail, effects and more while previewing the result.',
+    },
+    {
+      id: 'crop',
+      label: 'Crop',
+      opensWindow: true,
+      maxFiles: 1,
+      description: 'Crop to an aspect ratio or exact dimensions.',
+    },
+    {
+      id: 'add-bg',
+      label: 'Add BG',
+      opensWindow: true,
+      maxFiles: 1,
+      description:
+        'Place a photo on a solid color, gradient or another image, with spacing and rounded corners.',
+    },
+    {
+      id: 'annotate',
+      label: 'Annotate',
+      opensWindow: true,
+      maxFiles: 1,
+      description: 'Add arrows, shapes, text and numbered callouts.',
+    },
+    {
+      id: 'collage',
+      label: 'Collage',
+      opensWindow: true,
+      minFiles: 2,
+      description: 'Combine images in a grid, row, column or featured layout.',
+    },
   ],
   video: [
     { id: 'compress', label: 'Compress' },
@@ -128,12 +238,38 @@ export const TOOLS: Partial<Record<Category, readonly Tool[]>> = {
 };
 
 export const ACTIONS: readonly Tool[] = [
-  { id: 'copy', label: 'Copy' },
-  { id: 'move', label: 'Move' },
-  { id: 'copy-path', label: 'Copy Path' },
-  { id: 'terminal', label: 'Terminal' },
-  { id: 'float', label: 'Float' },
-  { id: 'reveal', label: 'Reveal' },
+  {
+    id: 'copy',
+    label: 'Copy',
+    description: 'Copy files to the clipboard, ready to paste in Explorer.',
+  },
+  {
+    id: 'move',
+    label: 'Move',
+    description: 'Choose a destination folder and move the originals there.',
+  },
+  {
+    id: 'copy-path',
+    label: 'Copy Path',
+    description: 'Copy full file paths as text, one path per line for a selection.',
+  },
+  {
+    id: 'terminal',
+    label: 'Terminal',
+    description: "Open a folder, or a file's containing folder, in a terminal.",
+  },
+  {
+    id: 'float',
+    label: 'Float',
+    description:
+      'Keep files in a floating shelf. Dock it to a screen edge and drag files into another app.',
+  },
+  {
+    id: 'copy-to',
+    label: 'Copy to',
+    description: 'Copy files into a folder you pick, leaving the originals in place.',
+  },
+  { id: 'reveal', label: 'Reveal', description: 'Open Explorer with the file selected.' },
 ];
 
 /** Lowercase extension without the dot, with aliases folded (jpeg to jpg). Works on Windows and POSIX paths. */
@@ -189,6 +325,8 @@ function selectionCategory(
 
 export interface TargetOptions {
   officeAvailable: boolean;
+  /** Whether this machine can encode HEIC output. */
+  heicEncoder?: boolean;
 }
 
 /** Targets common to every selected file (docs/01 section 3), in the default wedge order. */
@@ -204,7 +342,8 @@ export function targetsFor(
   const common = CONVERT_TARGETS[sel.category].filter(
     (target) =>
       perFile.every((ids) => ids.has(target.id)) &&
-      (!target.needsOffice || options.officeAvailable),
+      (!target.needsOffice || options.officeAvailable) &&
+      (!target.needsHeicEncoder || options.heicEncoder === true),
   );
   return { status: 'ok', category: sel.category, items: common };
 }
@@ -260,6 +399,14 @@ const MIME_EXT: Record<string, string> = {
   'video/x-msvideo': 'avi',
   'video/avi': 'avi',
   'video/x-ms-wmv': 'wmv',
+  'image/svg+xml': 'svg',
+  'image/gif': 'gif',
+  'application/epub+zip': 'epub',
+  'application/rtf': 'rtf',
+  'text/rtf': 'rtf',
+  'application/vnd.ms-powerpoint': 'ppt',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+  'application/vnd.oasis.opendocument.spreadsheet': 'ods',
   'application/pdf': 'pdf',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
   'text/markdown': 'md',
@@ -267,7 +414,7 @@ const MIME_EXT: Record<string, string> = {
   'text/html': 'html',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
   'text/csv': 'csv',
-  'application/vnd.ms-excel': 'csv',
+  'application/vnd.ms-excel': 'xls',
   'text/tab-separated-values': 'tsv',
   'application/x-subrip': 'srt',
   'text/vtt': 'vtt',

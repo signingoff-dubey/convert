@@ -6,6 +6,9 @@ export interface ExecOptions {
   onStdoutLine?(line: string): void;
   onStderrLine?(line: string): void;
   cwd?: string;
+  env?: NodeJS.ProcessEnv;
+  /** Written to the child's stdin, then closed. */
+  stdin?: string;
 }
 
 export interface ExecResult {
@@ -37,7 +40,14 @@ export function execFileSafe(
 ): Promise<ExecResult> {
   return new Promise((resolve, reject) => {
     if (options.signal?.aborted) return reject(new JobError('E_CANCELLED'));
-    const child = spawn(file, [...args], { cwd: options.cwd, windowsHide: true, shell: false });
+    const child = spawn(file, [...args], {
+      cwd: options.cwd,
+      env: options.env ? { ...process.env, ...options.env } : process.env,
+      windowsHide: true,
+      shell: false,
+    });
+    if (options.stdin !== undefined) child.stdin.end(options.stdin);
+    else child.stdin.end();
     const out = lines(options.onStdoutLine);
     const err = lines(options.onStderrLine);
     let stderr = '';

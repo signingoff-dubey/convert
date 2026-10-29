@@ -6,6 +6,11 @@ import { ffmpegPath } from './binaries';
 import { execFileSafe } from './exec';
 
 const CONVERT_OUT = new Set([
+  'mov',
+  'avi',
+  'wmv',
+  'aiff',
+  'wma',
   'mp3',
   'm4a',
   'wav',

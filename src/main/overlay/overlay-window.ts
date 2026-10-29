@@ -1,9 +1,10 @@
 import { BrowserWindow, screen } from 'electron';
 import type { WheelId } from '../../shared/formats';
-import { createWindow, loadPage, preloadPath } from '../windows/common';
+import { createWindow, loadPage } from '../windows/common';
 import { logger } from '../services/log';
 import type { Settings } from '../settings/schema';
 import type { OverlayController } from '../trigger/hooks';
+import type { WindowRegistry } from '../windows/registry';
 import type { Point } from '../trigger/state-machine';
 import { physicalToDip, type DisplayInfo, type Rect } from './dpi';
 import { OVERLAY_PADDING, WHEEL_DIAMETER, placeOverlay } from './geometry';
@@ -35,6 +36,7 @@ export class OverlayManager implements OverlayController {
   constructor(
     private readonly getSettings: () => Settings,
     private readonly getFlags: () => { office: boolean; heic: boolean },
+    private readonly registry: WindowRegistry,
   ) {}
 
   async create(): Promise<void> {
@@ -51,9 +53,10 @@ export class OverlayManager implements OverlayController {
         width: WHEEL_DIAMETER.m + OVERLAY_PADDING * 2,
         height: WHEEL_DIAMETER.m + OVERLAY_PADDING * 2,
       },
-      preloadPath('overlay'),
+      'overlay',
     );
     win.setAlwaysOnTop(true, 'screen-saver');
+    this.registry.register(win, 'overlay');
     // Do not call setIgnoreMouseEvents: the drag must be able to reach this window (docs/02 section 5).
     await loadPage(win, 'overlay');
     this.win = win;

@@ -3,7 +3,8 @@ import { BrowserWindow, screen } from 'electron';
 import { STRINGS } from '../../shared/strings';
 import type { JobSnapshot } from '../jobs/queue';
 import type { Settings } from '../settings/schema';
-import { createWindow, loadPage, preloadPath } from './common';
+import { createWindow, loadPage } from './common';
+import type { WindowRegistry } from './registry';
 
 export interface ToastModel {
   id: string;
@@ -101,7 +102,10 @@ export class ToastWindow {
   private ready: Promise<void> | null = null;
   private toasts: ToastModel[] = [];
 
-  constructor(private readonly getSettings: () => Settings) {}
+  constructor(
+    private readonly getSettings: () => Settings,
+    private readonly registry: WindowRegistry,
+  ) {}
 
   private async ensure(): Promise<BrowserWindow> {
     if (this.win && !this.win.isDestroyed()) {
@@ -121,10 +125,11 @@ export class ToastWindow {
         width: TOAST_W,
         height: TOAST_H,
       },
-      preloadPath('toast'),
+      'toast',
     );
     win.setAlwaysOnTop(true, 'screen-saver');
     this.win = win;
+    this.registry.register(win, 'toast');
     this.ready = loadPage(win, 'toast');
     win.on('closed', () => (this.win = null));
     await this.ready;

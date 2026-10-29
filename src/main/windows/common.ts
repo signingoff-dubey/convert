@@ -18,8 +18,9 @@ export function isTrustedUrl(url: string): boolean {
   return url.startsWith('file://') || (dev !== null && url.startsWith(dev));
 }
 
-export function preloadPath(name: string): string {
-  return join(__dirname, '../preload', `${name}.js`);
+/** One sandboxed preload for every window; it reads its page name from the launch arguments. */
+export function preloadPath(): string {
+  return join(__dirname, '../preload/index.js');
 }
 
 /** Background colour that matches the theme so there is no flash before the first paint. */
@@ -27,9 +28,10 @@ export function backgroundFor(settings: Settings, prefersDark: boolean): string 
   return THEMES[resolveTheme(settings.appearance.theme, prefersDark)].bg;
 }
 
-export function secureWebPreferences(preload: string): Electron.WebPreferences {
+export function secureWebPreferences(page: PageName): Electron.WebPreferences {
   return {
-    preload,
+    preload: preloadPath(),
+    additionalArguments: [`--convert-page=${page}`],
     contextIsolation: true,
     nodeIntegration: false,
     sandbox: true,
@@ -58,10 +60,10 @@ export async function loadPage(win: BrowserWindow, page: PageName): Promise<void
 
 export function createWindow(
   options: BrowserWindowConstructorOptions,
-  preload: string,
+  page: PageName,
 ): BrowserWindow {
   return new BrowserWindow({
     ...options,
-    webPreferences: secureWebPreferences(preload),
+    webPreferences: secureWebPreferences(page),
   });
 }

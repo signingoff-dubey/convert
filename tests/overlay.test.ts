@@ -82,3 +82,19 @@ describe('hitTest', () => {
     expect(hitTest({ x: 100, y: 50 }, { ...wheel, wedgeCount: 0 })).toEqual({ kind: 'outside' });
   });
 });
+
+import { vi } from 'vitest';
+vi.mock('lucide-react', () => ({}));
+
+describe('labelSize', async () => {
+  const { labelSize } = await import('../src/renderer/components/Wheel');
+  it('shrinks long labels on crowded small wheels, within a readable range', () => {
+    const crowded = labelSize('ANNOTATE', 220, 7);
+    expect(crowded).toBeLessThan(10.5);
+    expect(crowded).toBeGreaterThanOrEqual(8);
+    expect(labelSize('PNG', 280, 7)).toBe(12);
+  });
+  it('never exceeds the natural size', () => {
+    expect(labelSize('A', 340, 3)).toBeLessThanOrEqual(12);
+  });
+});

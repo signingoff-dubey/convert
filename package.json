@@ -1,6 +1,6 @@
 {
   "name": "convert",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Offline drag-and-wheel file converter for Windows",
   "scripts": {

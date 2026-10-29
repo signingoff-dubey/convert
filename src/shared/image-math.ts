@@ -269,3 +269,74 @@ export function parseBoxes(json: unknown, imageW: number, imageH: number, limit 
 }
 
 export const HEX = /^#[0-9a-fA-F]{6}$/;
+
+export type Handle = 'move' | 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
+
+/**
+ * New crop box after dragging a handle by (dx, dy), all in image pixels. The box always stays inside
+ * the image, keeps at least `min` pixels in each direction, and keeps its aspect ratio when one is set.
+ */
+export function dragBox(
+  handle: Handle,
+  box: Box,
+  dx: number,
+  dy: number,
+  bounds: { w: number; h: number },
+  ratio: number | null,
+  min = 8,
+): Box {
+  const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v));
+  if (handle === 'move') {
+    return {
+      ...box,
+      x: Math.round(clamp(box.x + dx, 0, bounds.w - box.w)),
+      y: Math.round(clamp(box.y + dy, 0, bounds.h - box.h)),
+    };
+  }
+  let left = box.x;
+  let right = box.x + box.w;
+  let top = box.y;
+  let bottom = box.y + box.h;
+  if (handle.includes('w')) left = clamp(left + dx, 0, right - min);
+  if (handle.includes('e')) right = clamp(right + dx, left + min, bounds.w);
+  if (handle.includes('n')) top = clamp(top + dy, 0, bottom - min);
+  if (handle.includes('s')) bottom = clamp(bottom + dy, top + min, bounds.h);
+  let w = right - left;
+  let h = bottom - top;
+  if (ratio !== null) {
+    const horizontal = handle.includes('w') || handle.includes('e');
+    const vertical = handle.includes('n') || handle.includes('s');
+    if (horizontal) h = w / ratio;
+    else w = h * ratio;
+    // Anchor the edge opposite the handle (or the centre for edge handles) and fit inside the image.
+    const cx = box.x + box.w / 2;
+    const cy = box.y + box.h / 2;
+    const maxW = handle.includes('w')
+      ? box.x + box.w
+      : handle.includes('e')
+        ? bounds.w - box.x
+        : 2 * Math.min(cx, bounds.w - cx);
+    const maxH = handle.includes('n')
+      ? box.y + box.h
+      : handle.includes('s')
+        ? bounds.h - box.y
+        : 2 * Math.min(cy, bounds.h - cy);
+    const scale = Math.min(1, maxW / w, maxH / h);
+    w *= scale;
+    h *= scale;
+    if (w < min) {
+      w = min;
+      h = w / ratio;
+    }
+    if (h < min) {
+      h = min;
+      w = h * ratio;
+    }
+    left = handle.includes('w') ? box.x + box.w - w : handle.includes('e') ? box.x : cx - w / 2;
+    top = handle.includes('n') ? box.y + box.h - h : handle.includes('s') ? box.y : cy - h / 2;
+    void vertical;
+  }
+  left = clamp(left, 0, bounds.w - w);
+  top = clamp(top, 0, bounds.h - h);
+  return { x: Math.round(left), y: Math.round(top), w: Math.round(w), h: Math.round(h) };
+}

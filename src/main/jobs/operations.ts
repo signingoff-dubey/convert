@@ -7,7 +7,7 @@ import { pdfEngine } from '../engines/pdf';
 import { sheetsEngine } from '../engines/sheets';
 import { subsEngine } from '../engines/subs';
 import { mediaKindOf } from '../engines/av-args';
-import { officeEngine, officeHandles } from '../engines/office-engine';
+import { officeEngine } from '../engines/office-engine';
 import { JobError, type Engine, type Operation, type OutputKind } from './types';
 
 export const ENGINES: readonly Engine[] = [

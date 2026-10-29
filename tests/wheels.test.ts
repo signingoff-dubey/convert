@@ -35,3 +35,16 @@ describe('wheel prefs', () => {
     expect(wheelKey('tools', null)).toBe('tools:all');
   });
 });
+
+import { applyWheelPrefsWithFlags } from '../src/shared/wheels';
+
+describe('applyWheelPrefsWithFlags', () => {
+  it('keeps disabled wedges, flagged, in the saved order', () => {
+    const r = applyWheelPrefsWithFlags([w('a'), w('b'), w('c')], ['c', 'a'], ['a']);
+    expect(r.map((x) => [x.id, x.enabled])).toEqual([
+      ['c', true],
+      ['a', false],
+      ['b', true],
+    ]);
+  });
+});

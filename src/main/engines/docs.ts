@@ -1,9 +1,8 @@
 import { nodeRequire } from './req';
-import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { extensionOf } from '../../shared/formats';
 import { JobError, type Engine, type Operation } from '../jobs/types';
-import { execFileSafe } from './exec';
 import { dynamicImport } from './esm';
 import { buildEpub, readEpub, splitChapters } from './epub';
 import { rtfToText } from './rtf';

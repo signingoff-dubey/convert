@@ -2,7 +2,7 @@ import path from 'node:path';
 import { app, BrowserWindow, nativeImage, screen } from 'electron';
 import type { DockEdge } from '../services/state';
 import type { Settings } from '../settings/schema';
-import { backgroundFor, createWindow, loadPage, preloadPath } from './common';
+import { backgroundFor, createWindow, loadPage } from './common';
 import type { WindowRegistry } from './registry';
 
 export interface FloatItem {
@@ -109,7 +109,7 @@ export class FloatShelf {
         width: 160,
         height: 300,
       },
-      preloadPath('float'),
+      'float',
     );
     win.setAlwaysOnTop(true, 'floating');
     this.win = win;

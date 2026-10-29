@@ -8,6 +8,7 @@ import { PDFDocument } from 'pdf-lib';
 import sharp from 'sharp';
 import { z, ZodError } from 'zod';
 import { categoryOf } from '../shared/formats';
+import { STRINGS } from '../shared/strings';
 import {
   CHANNELS,
   WINDOW_ACCESS,
@@ -16,7 +17,7 @@ import {
   type Response,
   type ToolWindowName,
 } from '../shared/ipc';
-import { dispatchWedge, validateDropped, type DispatchDeps } from './dispatch';
+import { validateDropped, type DispatchDeps } from './dispatch';
 import { probeDuration } from './engines/av';
 import { detectOffice } from './engines/binaries';
 import { detectTextBoxes, readFaceModel } from './engines/detect';
@@ -25,7 +26,6 @@ import { readMetadata } from './engines/meta';
 import type { JobQueue } from './jobs/queue';
 import { checkDropPath } from './jobs/paths';
 import type { Operation } from './jobs/types';
-import { copyFilesToClipboard } from './services/clipboard-files';
 import { logDir, logger, setLogLevel } from './services/log';
 import type { AppState } from './services/state';
 import type { ToastManager } from './services/toast';
@@ -157,7 +157,10 @@ export function registerIpc(ctx: IpcContext): void {
   handle('overlay:drop', async ({ wheelId, wedgeId, paths }) => {
     ctx.trigger.handleOverlayDrop(wheelId, { kind: 'wedge', wedgeId }, paths);
   });
-  handle('overlay:cancel', () => ctx.trigger.cancelOverlay());
+  handle('overlay:cancel', (payload) => {
+    ctx.trigger.cancelOverlay();
+    if (payload?.reason === 'not-on-disk') ctx.dispatch.notify(STRINGS.toast.notOnDisk, 'error');
+  });
 
   // ---- jobs and toasts
   handle('job:cancel', ({ jobId }) => ctx.queue.cancel(jobId));

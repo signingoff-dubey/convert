@@ -63,7 +63,10 @@ export const CHANNELS = {
     }),
     response: z.void(),
   },
-  'overlay:cancel': { request: z.undefined(), response: z.void() },
+  'overlay:cancel': {
+    request: z.object({ reason: z.enum(['not-on-disk']).optional() }).optional(),
+    response: z.void(),
+  },
   'job:cancel': { request: z.object({ jobId: z.string().max(64) }), response: z.void() },
   'job:undo': { request: z.object({ jobId: z.string().max(64) }), response: z.void() },
   'job:reveal': { request: z.object({ jobId: z.string().max(64) }), response: z.void() },

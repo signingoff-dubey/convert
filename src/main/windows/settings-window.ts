@@ -1,6 +1,6 @@
 import { BrowserWindow } from 'electron';
 import type { Settings } from '../settings/schema';
-import { backgroundFor, createWindow, loadPage, preloadPath } from './common';
+import { backgroundFor, createWindow, loadPage } from './common';
 import type { WindowRegistry } from './registry';
 
 /** One instance, created on demand and destroyed on close to save RAM (docs/03 section 1). */
@@ -35,7 +35,7 @@ export class SettingsWindow {
         titleBarOverlay: { color: '#00000000', symbolColor: '#888888', height: 40 },
         ...(isWin11 ? { backgroundMaterial: 'mica' as const } : {}),
       },
-      preloadPath('settings'),
+      'settings',
     );
     this.win = win;
     this.registry.register(win, 'settings');

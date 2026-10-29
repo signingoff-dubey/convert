@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { app, clipboard, dialog, globalShortcut, ipcMain, nativeTheme, shell } from 'electron';
 import { registerPreviewScheme, installPreviewHandler } from './protocol';
+import { ToolWindowName } from '../shared/ipc';
 import { dispatchWedge, type DispatchDeps } from './dispatch';
 import { shutdownDetectors } from './engines/detect';
 import { detectOffice } from './engines/binaries';
@@ -65,7 +66,7 @@ async function main(): Promise<void> {
     trash: (p) => shell.trashItem(p),
   });
 
-  const toastWindow = new ToastWindow(() => settings.get());
+  const toastWindow = new ToastWindow(() => settings.get(), registry);
   const toasts = new ToastManager(toastWindow, () => settings.get(), queue);
   const settingsWindow = new SettingsWindow(registry, () => settings.get(), prefersDark);
   const toolwin = new ToolWindowManager(registry, () => settings.get(), prefersDark);
@@ -79,8 +80,8 @@ async function main(): Promise<void> {
   const overlay = new OverlayManager(
     () => settings.get(),
     () => flags,
+    registry,
   );
-  await overlay.create();
 
   const dispatchDeps: DispatchDeps = {
     queue,
@@ -96,8 +97,7 @@ async function main(): Promise<void> {
         });
         return res.canceled ? null : (res.filePaths[0] ?? null);
       },
-      writeClipboard: (text) =>
-        void import('electron').then(({ clipboard }) => clipboard.writeText(text)),
+      writeClipboard: (text) => clipboard.writeText(text),
       copyFilesToClipboard,
       showItemInFolder: (p) => shell.showItemInFolder(p),
       openTerminal,
@@ -152,6 +152,21 @@ async function main(): Promise<void> {
     unregister: (accelerator: string) => globalShortcut.unregister(accelerator),
   };
 
+  // Renderers read the theme synchronously in their preload to avoid a flash.
+  ipcMain.on('theme:boot', (event) => {
+    if (!registry.pageOf(event.sender)) {
+      event.returnValue = null;
+      return;
+    }
+    const s = settings.get();
+    event.returnValue = {
+      theme: s.appearance.theme,
+      accent: s.appearance.accent,
+      prefersDark: prefersDark(),
+      animations: s.appearance.animations,
+    };
+  });
+
   registerIpc({
     settings,
     queue,
@@ -168,20 +183,8 @@ async function main(): Promise<void> {
     setFlags: (f) => Object.assign(flags, f),
   });
 
-  // Renderers read the theme synchronously in their preload to avoid a flash.
-  ipcMain.on('theme:boot', (event) => {
-    if (!registry.pageOf(event.sender)) {
-      event.returnValue = null;
-      return;
-    }
-    const s = settings.get();
-    event.returnValue = {
-      theme: s.appearance.theme,
-      accent: s.appearance.accent,
-      prefersDark: prefersDark(),
-      animations: s.appearance.animations,
-    };
-  });
+  // The overlay loads only after its IPC handlers exist, so its first settings request is answered.
+  await overlay.create();
 
   const applyPause = (): void => {
     if (settings.get().general.paused) trigger.stop();
@@ -211,6 +214,17 @@ async function main(): Promise<void> {
 
   if (process.platform === 'win32') applyPause();
   applyAutostart(settings.get().general.startWithWindows, state.firstRunDone);
+
+  // Developer aid, only in unpackaged runs: --dev-tool=crop:C:\\path\\photo.png opens a tool window directly.
+  const devTool = app.isPackaged
+    ? undefined
+    : process.argv.find((a) => a.startsWith('--dev-tool='));
+  if (devTool) {
+    const [name, ...rest] = devTool.slice('--dev-tool='.length).split(':');
+    const parsed = ToolWindowName.safeParse(name);
+    if (parsed.success && rest.length > 0)
+      await toolwin.show(parsed.data, rest.join(':').split('|'));
+  }
 
   const hidden = process.argv.includes('--hidden');
   if (!state.firstRunDone || !hidden) await settingsWindow.open();

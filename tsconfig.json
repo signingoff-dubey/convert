@@ -5,6 +5,7 @@
     "moduleResolution": "Bundler",
     "lib": ["ES2022", "DOM"],
     "strict": true,
+    "jsx": "react-jsx",
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
     "noFallthroughCasesInSwitch": true,
@@ -13,5 +14,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["src", "tests", "vitest.config.mts", "eslint.config.mjs"]
+  "include": ["src", "electron.vite.config.ts", "tests", "vitest.config.mts", "eslint.config.mjs"]
 }

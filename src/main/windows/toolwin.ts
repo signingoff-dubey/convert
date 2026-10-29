@@ -3,7 +3,7 @@ import { BrowserWindow } from 'electron';
 import type { ToolWindowName } from '../../shared/ipc';
 import { allowPreview } from '../protocol';
 import type { Settings } from '../settings/schema';
-import { backgroundFor, createWindow, loadPage, preloadPath } from './common';
+import { backgroundFor, createWindow, loadPage } from './common';
 import type { WindowRegistry } from './registry';
 
 const SIZES: Record<ToolWindowName, { width: number; height: number; resizable: boolean }> = {
@@ -55,7 +55,7 @@ export class ToolWindowManager {
         title: `Convert: ${tool}`,
         backgroundColor: backgroundFor(this.getSettings(), this.prefersDark()),
       },
-      preloadPath('toolwin'),
+      'toolwin',
     );
     const id = win.webContents.id;
     const allowed = new Set(paths.map((p) => path.resolve(p)));

@@ -31,3 +31,20 @@ export function applyWheelPrefs<T extends Wedge>(
   });
   return sorted.filter((w) => !off.has(w.id));
 }
+
+export interface WedgeFlag extends Wedge {
+  enabled: boolean;
+}
+
+/** Like applyWheelPrefs, but keeps disabled wedges in the list (flagged) so Settings can show and re-enable them. */
+export function applyWheelPrefsWithFlags<T extends Wedge>(
+  defaults: readonly T[],
+  order: readonly string[] | undefined,
+  disabled: readonly string[] | undefined,
+): (T & { enabled: boolean })[] {
+  const off = new Set(disabled ?? []);
+  return applyWheelPrefs(defaults, order, undefined).map((w) => ({
+    ...w,
+    enabled: !off.has(w.id),
+  }));
+}

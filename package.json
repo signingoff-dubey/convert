@@ -15,7 +15,7 @@
     "icons": "node --experimental-strip-types scripts/make-icons.mts",
     "licenses": "node scripts/make-licenses.mjs",
     "pack": "npm run build && electron-builder --dir",
-    "dist": "npm run build && electron-builder --win nsis --x64",
+    "dist": "npm run build && electron-builder --win nsis --x64 --publish never",
     "smoke": "node scripts/smoke.cjs"
   },
   "devDependencies": {

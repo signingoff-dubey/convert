@@ -44,6 +44,7 @@ export const Settings = z.object({
     toastPosition: z.enum(['bottomRight', 'bottomLeft', 'topRight']).default('bottomRight'),
     toastSeconds: z.number().min(2).max(15).default(6),
     imageQuality: z.number().min(40).max(100).default(85),
+    resizePreset: z.enum(['50%', '75%', '1080p', '720p']).default('50%'),
     compressTargetPercent: z.number().min(10).max(90).default(50),
     preferredShell: z.enum(['wt', 'powershell', 'cmd']).default('wt'),
   }),

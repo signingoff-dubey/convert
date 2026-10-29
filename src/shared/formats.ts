@@ -226,3 +226,67 @@ export function toolsFor(items: readonly InputItem[]): WheelResult<Tool> {
 export function actionsFor(items: readonly InputItem[]): Tool[] {
   return items.length === 0 ? [] : [...ACTIONS];
 }
+
+/** MIME type to a representative extension. Used before the drop, when only MIME types are readable. */
+const MIME_EXT: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/heic': 'heic',
+  'image/heif': 'heic',
+  'image/tiff': 'tiff',
+  'image/avif': 'avif',
+  'image/bmp': 'bmp',
+  'image/x-ms-bmp': 'bmp',
+  'audio/mpeg': 'mp3',
+  'audio/mp3': 'mp3',
+  'audio/mp4': 'm4a',
+  'audio/x-m4a': 'm4a',
+  'audio/aac': 'm4a',
+  'audio/wav': 'wav',
+  'audio/x-wav': 'wav',
+  'audio/wave': 'wav',
+  'audio/flac': 'flac',
+  'audio/x-flac': 'flac',
+  'audio/ogg': 'ogg',
+  'audio/opus': 'opus',
+  'audio/x-ms-wma': 'wma',
+  'audio/aiff': 'aiff',
+  'audio/x-aiff': 'aiff',
+  'video/mp4': 'mp4',
+  'video/quicktime': 'mov',
+  'video/x-matroska': 'mkv',
+  'video/webm': 'webm',
+  'video/x-msvideo': 'avi',
+  'video/avi': 'avi',
+  'video/x-ms-wmv': 'wmv',
+  'application/pdf': 'pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+  'text/markdown': 'md',
+  'text/plain': 'txt',
+  'text/html': 'html',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+  'text/csv': 'csv',
+  'application/vnd.ms-excel': 'csv',
+  'text/tab-separated-values': 'tsv',
+  'application/x-subrip': 'srt',
+  'text/vtt': 'vtt',
+  'application/zip': 'zip',
+  'application/x-zip-compressed': 'zip',
+  'application/x-tar': 'tar',
+  'application/gzip': 'gz',
+  'application/x-gzip': 'gz',
+  'application/vnd.rar': 'rar',
+  'application/x-rar-compressed': 'rar',
+};
+
+/**
+ * Builds placeholder items from the MIME types a drag exposes before the drop. An empty or unknown
+ * MIME type becomes an item with no known extension, so the wheel disables itself honestly.
+ */
+export function itemsFromMimeTypes(mimes: readonly string[]): InputItem[] {
+  return mimes.map((mime, i) => {
+    const ext = MIME_EXT[mime.toLowerCase()];
+    return { path: ext ? `item${i}.${ext}` : `item${i}`, isDirectory: false };
+  });
+}

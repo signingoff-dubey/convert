@@ -1,4 +1,6 @@
 import { win32 } from 'node:path';
+
+type PlatformPath = typeof win32;
 import { STRINGS } from '../../shared/strings';
 
 export interface NamingSettings {
@@ -37,34 +39,43 @@ export function toExtendedPath(path: string): string {
   return `\\\\?\\${path}`;
 }
 
-function outputFolder(srcDir: string, settings: NamingSettings): string {
+function outputFolder(srcDir: string, settings: NamingSettings, api: PlatformPath): string {
   if (settings.location === 'custom' && settings.customFolder) return settings.customFolder;
-  return settings.useConvertedSubfolder ? win32.join(srcDir, 'Converted') : srcDir;
+  return settings.useConvertedSubfolder ? api.join(srcDir, 'Converted') : srcDir;
 }
 
-function sameWindowsPath(a: string, b: string): boolean {
-  return win32.normalize(a).toLowerCase() === win32.normalize(b).toLowerCase();
+function samePath(a: string, b: string, api: PlatformPath): boolean {
+  const [x, y] = [api.normalize(a), api.normalize(b)];
+  // Windows paths are case-insensitive; the posix `api` exists only so tests can run elsewhere.
+  return api === win32 ? x.toLowerCase() === y.toLowerCase() : x === y;
+}
+
+function finalize(path: string, api: PlatformPath): string {
+  return api === win32 ? toExtendedPath(path) : path;
 }
 
 /**
  * Picks the output path for converting `srcPath` to `newExt`. Never returns an existing path
  * and never returns the source path itself. `existsFn` receives the path that will actually be used.
+ * `api` is win32 in the app; tests on other systems pass the platform's own path module.
  */
 export function resolveOutput(
   srcPath: string,
   newExt: string,
   settings: NamingSettings,
   existsFn: (path: string) => boolean,
+  suffix = '',
+  api: PlatformPath = win32,
 ): string {
-  const { dir, name } = win32.parse(srcPath);
-  const folder = outputFolder(dir, settings);
-  const base = sanitizeName(name);
+  const { dir, name } = api.parse(srcPath);
+  const folder = outputFolder(dir, settings, api);
+  const base = sanitizeName(name) + suffix;
   const ext = newExt.replace(/^\./, '').toLowerCase();
   for (let n = 0; ; n++) {
     const file = n === 0 ? `${base}.${ext}` : `${base} (${n}).${ext}`;
-    const candidate = win32.join(folder, file);
-    if (sameWindowsPath(candidate, srcPath)) continue;
-    const final = toExtendedPath(candidate);
+    const candidate = api.join(folder, file);
+    if (samePath(candidate, srcPath, api)) continue;
+    const final = finalize(candidate, api);
     if (!existsFn(final)) return final;
   }
 }
@@ -74,13 +85,15 @@ export function resolveOutputDir(
   srcPath: string,
   settings: NamingSettings,
   existsFn: (path: string) => boolean,
+  suffix = '',
+  api: PlatformPath = win32,
 ): string {
-  const { dir, name } = win32.parse(srcPath);
-  const folder = outputFolder(dir, settings);
-  const base = sanitizeName(name);
+  const { dir, name } = api.parse(srcPath);
+  const folder = outputFolder(dir, settings, api);
+  const base = sanitizeName(name) + suffix;
   for (let n = 0; ; n++) {
-    const candidate = win32.join(folder, n === 0 ? base : `${base} (${n})`);
-    const final = toExtendedPath(candidate);
+    const candidate = api.join(folder, n === 0 ? base : `${base} (${n})`);
+    const final = finalize(candidate, api);
     if (!existsFn(final)) return final;
   }
 }

@@ -90,3 +90,22 @@ describe('actionsFor', () => {
     expect(actionsFor([])).toHaveLength(0);
   });
 });
+
+import { itemsFromMimeTypes } from '../src/shared/formats';
+
+describe('itemsFromMimeTypes', () => {
+  it('maps drag MIME types to the same wedges the real extension would give', () => {
+    const items = itemsFromMimeTypes(['audio/wav']);
+    expect(ids(targetsFor(items))).toEqual(['mp3', 'm4a', 'flac', 'ogg', 'opus']);
+  });
+  it('treats empty and unknown MIME types as unknown, so Convert and Tools disable', () => {
+    expect(targetsFor(itemsFromMimeTypes(['']))).toMatchObject({
+      status: 'disabled',
+      reason: 'unknown-type',
+    });
+    expect(toolsFor(itemsFromMimeTypes(['application/x-weird']))).toMatchObject({
+      status: 'disabled',
+    });
+    expect(actionsFor(itemsFromMimeTypes(['']))).toHaveLength(6);
+  });
+});

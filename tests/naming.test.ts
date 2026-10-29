@@ -1,3 +1,4 @@
+import { posix } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   NamingError,
@@ -70,5 +71,17 @@ describe('resolveOutputDir / pageFileName', () => {
   it('pads page numbers to at least three digits', () => {
     expect(pageFileName('doc', 7, 'PNG', 12)).toBe('doc-007.png');
     expect(pageFileName('doc', 7, 'png', 12345)).toBe('doc-00007.png');
+  });
+});
+
+describe('platform path module', () => {
+  it('works with posix paths for tests and tools on other systems', () => {
+    expect(resolveOutput('/tmp/a.png', 'jpg', base, none, '', posix)).toBe('/tmp/a.jpg');
+    expect(resolveOutput('/tmp/a.png', 'png', base, none, '', posix)).toBe('/tmp/a (1).png');
+    expect(resolveOutput('/tmp/a.png', 'PNG', base, none, '', posix)).toBe('/tmp/a (1).png');
+    expect(resolveOutput('/tmp/A.png', 'png', base, none, '', posix)).toBe('/tmp/A (1).png');
+    expect(resolveOutput('/tmp/a.pdf', 'pdf', base, none, '-merged', posix)).toBe(
+      '/tmp/a-merged.pdf',
+    );
   });
 });

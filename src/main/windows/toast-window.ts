@@ -76,6 +76,16 @@ export function buildToast(batch: JobSnapshot[], seconds: number): ToastModel {
     };
   }
   const label = STRINGS.toolLabels[first.opId] ?? '';
+  if (ok.every((j) => j.note === 'text-copied')) {
+    return {
+      ...base,
+      kind: 'success',
+      title: STRINGS.toast.textCopied(ok.reduce((sum, j) => sum + (j.copiedChars ?? 0), 0)),
+      canCancel: false,
+      canUndo: false,
+      canReveal: false,
+    };
+  }
   const compact = ok.every((j) => j.note === 'already-compact');
   const title = compact
     ? STRINGS.toast.alreadyCompact

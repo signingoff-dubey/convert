@@ -41,7 +41,7 @@ export const sheetsEngine: Engine = {
   canHandle: (op, input) =>
     op.kind === 'convert' &&
     ['xlsx', 'csv', 'tsv'].includes(extensionOf(input)) &&
-    ['xlsx', 'csv', 'tsv'].includes(op.id),
+    ['xlsx', 'csv', 'tsv', 'txt'].includes(op.id),
   async run(op, input, ctx) {
     const rows = await readRows(input);
     if (op.id === 'xlsx') {
@@ -52,6 +52,11 @@ export const sheetsEngine: Engine = {
       return;
     }
     const Papa = nodeRequire('papaparse') as typeof import('papaparse');
+    if (op.id === 'txt') {
+      // Plain readable text: tab-separated, one row per line.
+      const plain = Papa.unparse(rows, { delimiter: '\t', newline: '\n', quotes: false });
+      return writeFile(ctx.tempPath, plain + '\n', 'utf8');
+    }
     const text = Papa.unparse(rows, { delimiter: DELIMITERS[op.id] ?? ',', newline: '\r\n' });
     // A BOM makes Excel read UTF-8 correctly.
     await writeFile(ctx.tempPath, `﻿${text}`, 'utf8');

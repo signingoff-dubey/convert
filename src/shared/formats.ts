@@ -29,6 +29,8 @@ export interface Target {
   needsOffice?: boolean;
   /** Hidden unless this machine can encode HEIC (Windows HEIF extension). */
   needsHeicEncoder?: boolean;
+  /** Extensions this target is not offered for, such as reading text from an SVG. */
+  notFor?: readonly string[];
 }
 
 export interface Tool {
@@ -39,6 +41,8 @@ export interface Tool {
   /** Minimum and maximum number of selected files the tool accepts. */
   minFiles?: number;
   maxFiles?: number;
+  /** Only offered when every selected file has one of these extensions. */
+  exts?: readonly string[];
   /** Short description for the Features page. */
   description?: string;
 }
@@ -90,6 +94,7 @@ export const CONVERT_TARGETS: Record<Category, readonly Target[]> = {
     t('avif', 'AVIF'),
     t('bmp', 'BMP'),
     t('pdf', 'PDF'),
+    t('txt', 'TXT (read text)', { notFor: ['svg'] }),
   ],
   audio: [
     t('mp3', 'MP3'),
@@ -122,7 +127,7 @@ export const CONVERT_TARGETS: Record<Category, readonly Target[]> = {
     t('md', 'MD'),
   ],
   document: [
-    t('pdf', 'PDF', { needsOffice: true }),
+    t('pdf', 'PDF'),
     t('docx', 'DOCX'),
     t('md', 'MD'),
     t('txt', 'TXT'),
@@ -140,15 +145,10 @@ export const CONVERT_TARGETS: Record<Category, readonly Target[]> = {
     t('ods', 'ODS', { needsOffice: true }),
     t('csv', 'CSV'),
     t('tsv', 'TSV'),
-    t('pdf', 'PDF', { needsOffice: true }),
-  ],
-  epub: [
-    t('docx', 'DOCX'),
-    t('md', 'MD'),
     t('txt', 'TXT'),
-    t('html', 'HTML'),
     t('pdf', 'PDF', { needsOffice: true }),
   ],
+  epub: [t('docx', 'DOCX'), t('md', 'MD'), t('txt', 'TXT'), t('html', 'HTML'), t('pdf', 'PDF')],
   subtitles: [t('srt', 'SRT'), t('vtt', 'VTT'), t('txt', 'TXT')],
   archive: [
     { id: 'extract-here', ext: null, label: 'Extract here' },
@@ -156,6 +156,27 @@ export const CONVERT_TARGETS: Record<Category, readonly Target[]> = {
     t('tar', 'TAR'),
     t('gz', 'GZIP'),
   ],
+};
+
+const COPY_TEXT: Tool = {
+  id: 'copy-text',
+  label: 'Copy text',
+  description:
+    'Read the text in pictures, scans and documents and put it on the clipboard. Pictures are read offline, several parts at a time.',
+};
+const MERGE_MEDIA: Tool = {
+  id: 'merge',
+  label: 'Merge',
+  opensWindow: true,
+  minFiles: 2,
+  description: 'Join videos or audio files end to end, in the order you choose.',
+};
+const PASSWORD: Tool = {
+  id: 'password',
+  label: 'Password',
+  opensWindow: true,
+  maxFiles: 1,
+  description: 'Add a password to a PDF or ZIP, or remove it when you know it.',
 };
 
 /** Tools wheel (docs/01 section 4.2, extended with the editors from the product reference). */
@@ -219,22 +240,69 @@ export const TOOLS: Partial<Record<Category, readonly Tool[]>> = {
       minFiles: 2,
       description: 'Combine images in a grid, row, column or featured layout.',
     },
+    {
+      id: 'upscale',
+      label: 'Upscale',
+      opensWindow: true,
+      description:
+        'Make pictures 2x, 3x or 4x larger with high-quality resampling and optional sharpening. Works on many images at once.',
+    },
+    {
+      id: 'remove-bg',
+      label: 'Remove BG',
+      opensWindow: true,
+      description:
+        'Make a plain background transparent. Best for flat or studio backgrounds; works on many images at once.',
+    },
+    COPY_TEXT,
   ],
   video: [
     { id: 'compress', label: 'Compress' },
     { id: 'trim', label: 'Trim start/end', opensWindow: true, maxFiles: 1 },
     { id: 'extract-audio', label: 'Extract audio' },
+    MERGE_MEDIA,
+    {
+      id: 'frames',
+      label: 'Extract frames',
+      opensWindow: true,
+      description:
+        'Save still pictures from a video into a folder, one every second or every frame.',
+    },
   ],
   audio: [
     { id: 'compress', label: 'Compress' },
     { id: 'trim', label: 'Trim', opensWindow: true, maxFiles: 1 },
     { id: 'normalize', label: 'Normalize' },
+    MERGE_MEDIA,
   ],
   pdf: [
     { id: 'compress', label: 'Compress' },
     { id: 'split', label: 'Split pages', opensWindow: true, maxFiles: 1 },
+    {
+      id: 'delete-pages',
+      label: 'Delete pages',
+      opensWindow: true,
+      maxFiles: 1,
+      description:
+        'See every page as a thumbnail, untick the ones to drop, and save the rest as a new PDF.',
+    },
     { id: 'merge', label: 'Merge', opensWindow: true, minFiles: 2 },
+    PASSWORD,
+    COPY_TEXT,
   ],
+  document: [
+    {
+      id: 'merge',
+      label: 'Merge',
+      opensWindow: true,
+      minFiles: 2,
+      exts: ['txt', 'md'],
+      description: 'Join text or Markdown files into one, in the order you choose.',
+    },
+    COPY_TEXT,
+  ],
+  epub: [COPY_TEXT],
+  archive: [{ ...PASSWORD, maxFiles: 1, exts: ['zip'] }],
 };
 
 export const ACTIONS: readonly Tool[] = [
@@ -247,6 +315,11 @@ export const ACTIONS: readonly Tool[] = [
     id: 'move',
     label: 'Move',
     description: 'Choose a destination folder and move the originals there.',
+  },
+  {
+    id: 'zip',
+    label: 'Zip',
+    description: 'Put the selected files and folders into one ZIP, saved beside the first one.',
   },
   {
     id: 'copy-path',
@@ -294,7 +367,9 @@ export function categoryOf(path: string): Category | null {
 /** HEIC is input-only in v1; a source never offers its own format as a target. */
 function targetsForFile(path: string, category: Category): Target[] {
   const own = extensionOf(path);
-  return CONVERT_TARGETS[category].filter((target) => target.ext !== own);
+  return CONVERT_TARGETS[category].filter(
+    (target) => target.ext !== own && !target.notFor?.includes(own),
+  );
 }
 
 function disabled<T>(reason: DisabledReason): WheelResult<T> {
@@ -329,7 +404,10 @@ export interface TargetOptions {
   heicEncoder?: boolean;
 }
 
-/** Targets common to every selected file (docs/01 section 3), in the default wedge order. */
+/**
+ * Targets at least one selected file can be converted to, in the default wedge order. Files that are already
+ * in the chosen format, or cannot go there, are skipped when the job is dispatched (docs/DECISIONS.md).
+ */
 export function targetsFor(
   items: readonly InputItem[],
   options: TargetOptions = { officeAvailable: false },
@@ -341,7 +419,7 @@ export function targetsFor(
   );
   const common = CONVERT_TARGETS[sel.category].filter(
     (target) =>
-      perFile.every((ids) => ids.has(target.id)) &&
+      perFile.some((ids) => ids.has(target.id)) &&
       (!target.needsOffice || options.officeAvailable) &&
       (!target.needsHeicEncoder || options.heicEncoder === true),
   );
@@ -355,7 +433,8 @@ export function toolsFor(items: readonly InputItem[]): WheelResult<Tool> {
   const tools = (TOOLS[sel.category] ?? []).filter(
     (tool) =>
       items.length >= (tool.minFiles ?? 1) &&
-      items.length <= (tool.maxFiles ?? Number.MAX_SAFE_INTEGER),
+      items.length <= (tool.maxFiles ?? Number.MAX_SAFE_INTEGER) &&
+      (!tool.exts || items.every((i) => tool.exts?.includes(extensionOf(i.path)))),
   );
   if (tools.length === 0) return disabled('no-tools');
   return { status: 'ok', category: sel.category, items: tools };

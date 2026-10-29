@@ -90,7 +90,8 @@ export function resolveOutputDir(
 ): string {
   const { dir, name } = api.parse(srcPath);
   const folder = outputFolder(dir, settings, api);
-  const base = sanitizeName(name) + suffix;
+  // photos.tar.gz becomes the folder "photos", not "photos.tar".
+  const base = sanitizeName(name.replace(/\.tar$/i, '')) + suffix;
   for (let n = 0; ; n++) {
     const candidate = api.join(folder, n === 0 ? base : `${base} (${n})`);
     const final = finalize(candidate, api);

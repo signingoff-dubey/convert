@@ -7,7 +7,7 @@ import { invoke, previewSrc } from '../shared/api';
 export const TITLES: Record<ToolWindowName, string> = {
   trim: 'Trim',
   split: 'Split pages',
-  merge: 'Merge PDFs',
+  merge: 'Merge files',
   compress: 'Compress images',
   redact: 'Redact photo',
   metadata: 'Edit metadata',
@@ -16,6 +16,11 @@ export const TITLES: Record<ToolWindowName, string> = {
   'add-bg': 'Add a background',
   annotate: 'Annotate photo',
   collage: 'Make a collage',
+  frames: 'Extract frames',
+  'delete-pages': 'Delete pages',
+  upscale: 'Upscale images',
+  'remove-bg': 'Remove background',
+  password: 'Password',
 };
 
 export type Params = Record<string, string | number | boolean>;

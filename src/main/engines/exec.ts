@@ -14,6 +14,8 @@ export interface ExecOptions {
 export interface ExecResult {
   code: number;
   stderr: string;
+  /** The first couple of megabytes of standard output. */
+  stdout: string;
 }
 
 function lines(onLine: ((line: string) => void) | undefined) {
@@ -51,7 +53,11 @@ export function execFileSafe(
     const out = lines(options.onStdoutLine);
     const err = lines(options.onStderrLine);
     let stderr = '';
-    child.stdout.on('data', (d: Buffer) => out.push(d));
+    let stdout = '';
+    child.stdout.on('data', (d: Buffer) => {
+      if (stdout.length < 2_000_000) stdout += d.toString('utf8');
+      out.push(d);
+    });
     child.stderr.on('data', (d: Buffer) => {
       stderr = (stderr + d.toString('utf8')).slice(-8000);
       err.push(d);
@@ -67,7 +73,7 @@ export function execFileSafe(
     child.on('close', (code) => {
       options.signal?.removeEventListener('abort', onAbort);
       if (options.signal?.aborted) return reject(new JobError('E_CANCELLED'));
-      resolve({ code: code ?? -1, stderr });
+      resolve({ code: code ?? -1, stderr, stdout });
     });
   });
 }

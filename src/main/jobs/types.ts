@@ -8,6 +8,7 @@ export type ErrorCode =
   | 'E_PERMISSION'
   | 'E_PATH_TOO_LONG'
   | 'E_ENCRYPTED_PDF'
+  | 'E_WRONG_PASSWORD'
   | 'E_CANCELLED'
   | 'E_STALLED'
   | 'E_UNKNOWN';
@@ -25,7 +26,16 @@ export type Params = Record<string, string | number | boolean>;
 
 /** What a job writes. 'none' is for operations that only report (never used by engines today). */
 export type OutputKind =
-  { type: 'file'; ext: string; suffix?: string } | { type: 'dir'; suffix?: string };
+  | { type: 'file'; ext: string; suffix?: string }
+  /** Several results, moved straight into the original's folder. */
+  | { type: 'dir'; suffix?: string }
+  /**
+   * Several results kept together in a folder named after the original. With `collapseSingle`, an
+   * archive that holds just one top-level item is not wrapped in a folder.
+   */
+  | { type: 'folder'; suffix?: string; collapseSingle?: boolean }
+  /** Nothing is written: the text the engine produces goes to the clipboard. */
+  | { type: 'clipboard' };
 
 export interface Operation {
   /** Wedge or tool id, such as 'png', 'compress', 'trim'. */
@@ -73,6 +83,6 @@ export interface JobResult {
   /** Every file or folder a job created, in the original's folder. `output` is the first. */
   outputs?: string[];
   status: Exclude<JobStatus, 'queued' | 'running'>;
-  note?: 'already-compact';
+  note?: 'already-compact' | 'text-copied';
   error?: { code: ErrorCode; message: string };
 }

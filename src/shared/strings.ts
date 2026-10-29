@@ -33,7 +33,9 @@ export const STRINGS = {
     E_DISK_FULL: 'The disk is full. Free some space and try again.',
     E_PERMISSION: "Convert couldn't read or write there. Check the folder's permissions.",
     E_PATH_TOO_LONG: 'The output path is too long for Windows. Pick a shorter folder.',
-    E_ENCRYPTED_PDF: 'This PDF is password protected. Remove the password first.',
+    E_ENCRYPTED_PDF:
+      'This PDF is password protected. Use Tools, then Password, to unlock it first.',
+    E_WRONG_PASSWORD: 'That password is not correct.',
     E_CANCELLED: 'Cancelled.',
     E_STALLED: 'This job has stopped making progress.',
     E_UNKNOWN: 'Something went wrong. Open the log folder for details.',
@@ -43,6 +45,12 @@ export const STRINGS = {
     convertedMany: (n: number) => `Converted ${n} files`,
     toolDone: (label: string, name: string) => `${label} ${name}`,
     toolDoneMany: (label: string, n: number) => `${label} ${n} files`,
+    skipped: (n: number, target: string) =>
+      n === 1
+        ? `Skipped 1 file that is already ${target} or cannot become it`
+        : `Skipped ${n} files that are already ${target} or cannot become it`,
+    nothingToDo: (target: string) =>
+      `Nothing to convert: every selected file is already ${target} or cannot become it`,
     savedIn: (folder: string) => `Saved in ${folder}`,
     savedManyIn: (n: number, folder: string) => `${n} files saved in ${folder}`,
     alreadyCompact: 'Already compact. Nothing was written.',
@@ -57,6 +65,7 @@ export const STRINGS = {
     details: 'Details',
     notOnDisk: "This item isn't a file on disk.",
     paused: 'Convert is paused',
+    textCopied: (chars: number) => `Copied ${chars.toLocaleString('en-US')} characters of text`,
     copiedToClipboard: (n: number) =>
       n === 1 ? 'Copied to clipboard' : `${n} files copied to clipboard`,
     copied: (n: number) => (n === 1 ? 'Path copied' : `${n} paths copied`),
@@ -75,5 +84,12 @@ export const STRINGS = {
     normalize: 'Normalized',
     split: 'Split',
     merge: 'Merged',
+    zip: 'Zipped',
+    frames: 'Extracted frames from',
+    'delete-pages': 'Removed pages from',
+    upscale: 'Upscaled',
+    'remove-bg': 'Removed the background from',
+    password: 'Changed the password of',
+    'copy-text': 'Copied text from',
   } as Record<string, string>,
 } as const;

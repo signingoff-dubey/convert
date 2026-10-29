@@ -14,7 +14,7 @@ files:
   - '!node_modules/@vladmandic/face-api/types/**'
   - '!node_modules/@vladmandic/face-api/src/**'
 asar: true
-# Every native module here (uiohook-napi, koffi, sharp, @napi-rs/canvas) ships prebuilt N-API binaries, so
+# Every native module here (uiohook-napi, koffi, sharp) ships prebuilt N-API binaries, so
 # nothing needs compiling and the packager must not ask for Visual Studio build tools.
 npmRebuild: false
 nodeGypRebuild: false

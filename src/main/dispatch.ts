@@ -65,18 +65,47 @@ export async function dispatchWedge(
 
   if (wheel === 'actions') {
     if (!actionsFor(items).some((a) => a.id === wedgeId)) return;
+    if (wedgeId === 'zip') {
+      // Zip is a real job, so it gets progress, a toast, Show in folder and Undo.
+      deps.queue.enqueue({ id: 'zip', kind: 'tool' }, paths);
+      return;
+    }
     await runAction(wedgeId as ActionId, paths, deps.actions);
     return;
   }
 
   if (wheel === 'convert') {
     const { office, heic } = deps.flags();
-    const result = targetsFor(items, { officeAvailable: office, heicEncoder: heic });
-    if (result.status !== 'ok' || !result.items.some((t) => t.id === wedgeId)) {
+    const options = { officeAvailable: office, heicEncoder: heic };
+    const result = targetsFor(items, options);
+    const target = result.status === 'ok' ? result.items.find((t) => t.id === wedgeId) : undefined;
+    if (!target) {
       deps.notify(STRINGS.errors.E_UNSUPPORTED, 'error');
       return;
     }
-    deps.queue.enqueue({ id: wedgeId, kind: 'convert' }, paths);
+    // A mixed selection (some PNG, some JPG) can still be sent to JPG: files already in that format, or that
+    // cannot become it, are skipped and the rest are converted.
+    const convertible = items.filter((item) => {
+      const one = targetsFor([item], options);
+      return one.status === 'ok' && one.items.some((t) => t.id === wedgeId);
+    });
+    if (convertible.length === 0) {
+      deps.notify(STRINGS.toast.nothingToDo(target.label.replace(' (extract audio)', '')), 'info');
+      return;
+    }
+    if (convertible.length < items.length) {
+      deps.notify(
+        STRINGS.toast.skipped(
+          items.length - convertible.length,
+          target.label.replace(' (extract audio)', ''),
+        ),
+        'info',
+      );
+    }
+    deps.queue.enqueue(
+      { id: wedgeId, kind: 'convert' },
+      convertible.map((i) => i.path),
+    );
     return;
   }
 

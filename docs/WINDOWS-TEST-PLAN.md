@@ -38,7 +38,7 @@ If row 2 fails (the drop never arrives), the contingency is the `IDropTarget` ad
 | 15 | Drag a folder, **Shift+C** | Greyed out with a hint. **Shift+A** works. |
 | 16 | Drag three images, **Shift+C**, drop on **PDF** | One PDF with three pages. |
 | 17 | Drag one image, **Shift+T**, pick each of Compress, Edit, Crop, Add BG, Annotate, Metadata, Redact | A window opens for each, with a preview. Run produces a copy beside the original. |
-| 18 | Drag two images, **Shift+T** | Compress and Collage only. |
+| 18 | Drag two images, **Shift+T** | Compress, Collage, Upscale, Remove BG and Copy text only. |
 | 19 | Redact: press Detect faces on a photo with faces, then Detect text on a screenshot | Boxes appear. Check that the faces are covered. |
 | 20 | Actions: Copy, then paste in a folder | The file is pasted. |
 | 21 | Actions: Move to a folder | The source is gone from the old folder. This is the only action that removes a source. |
@@ -87,3 +87,19 @@ Install LibreOffice, then Settings, then Engines, then Detect LibreOffice.
 ## 7. Source safety, across everything above
 
 After every row that converts something, confirm the original still exists and is unchanged.
+
+## 6. Multi-file tools, text and passwords
+
+| # | Do this | Expect |
+|---|---|---|
+| 40 | Drag a PDF, **Shift+T**, Delete pages, untick two pages, Save | A thumbnail per page, all ticked at first. `-edited.pdf` beside it has the ticked pages only. |
+| 41 | Drag two PDFs, then two MP4s, then two MP3s, then a `.txt` and a `.md`, **Shift+T**, Merge | One `-merged` file each, joined in the order shown. The MP4 plays through with sound. |
+| 42 | Drag a PDF, Tools, Password, add one; then drag the new file and remove it | Adobe Reader or Edge asks for the password. Removing with a wrong password says so. Repeat with a ZIP and open it in Explorer and 7-Zip. |
+| 43 | Drag a photo of text, **Shift+C**, TXT; then Tools, Copy text, paste in Notepad | A `.txt` beside the photo; the clipboard holds the text and the toast says how many characters. |
+| 44 | Drag a scanned PDF, Convert to TXT | Text from every page. The cursor ring shows progress. |
+| 45 | Drag a `.md`, Convert to PDF with LibreOffice not installed | A PDF with headings, lists and code formatted. |
+| 46 | Drag several images, Tools, Upscale 2x, then Remove BG on product shots with plain backgrounds | `-2x` and `-nobg` files beside each original. |
+| 47 | Drag three ZIPs, Convert, Extract here | Each unzips into a folder named after it, beside it. |
+| 48 | Drag several files and a folder, **Shift+A**, Zip | One ZIP beside the first item. |
+| 49 | Drag a video, Tools, Extract frames | A `<name> frames` folder of pictures beside the video. |
+| 50 | Convert a PDF to PNG and open Delete pages on any PDF | The hidden PDF reader works on Windows (DEVIATION-16). |

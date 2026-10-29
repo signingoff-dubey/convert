@@ -17,7 +17,7 @@ export function Merge({ paths }: { paths: string[] }) {
   return (
     <ToolFrame tool="merge" runLabel="Merge" onRun={() => void run('merge', order, {})}>
       <p className="mb-3 text-sm text-muted">
-        The PDFs are joined in this order. The result is named after the first one.
+        The files are joined in this order, top to bottom. The result is named after the first one.
       </p>
       <ol className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface">
         {order.map((p, i) => (

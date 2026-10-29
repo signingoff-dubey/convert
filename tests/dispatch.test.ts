@@ -86,6 +86,30 @@ describe('dispatchWedge', () => {
     await dispatchWedge(b.d, 'convert', 'heic', [png]);
     expect(b.enqueue).toHaveBeenCalled();
   });
+  it('sends a mixed batch to one format and skips what is already in it', async () => {
+    const jpg = join(root, 'q.jpg');
+    writeFileSync(jpg, 'x');
+    const { d, enqueue, notify } = deps();
+    await dispatchWedge(d, 'convert', 'jpg', [png, jpg]);
+    expect(enqueue).toHaveBeenCalledWith({ id: 'jpg', kind: 'convert' }, [png]);
+    expect(notify).toHaveBeenCalledWith(
+      'Skipped 1 file that is already JPG or cannot become it',
+      'info',
+    );
+  });
+  it('says so when every file is already in the chosen format', async () => {
+    const jpg = join(root, 'r.jpg');
+    const jpg2 = join(root, 'r2.jpg');
+    writeFileSync(jpg, 'x');
+    writeFileSync(jpg2, 'x');
+    const { d, enqueue, notify } = deps();
+    await dispatchWedge(d, 'convert', 'png', [jpg, jpg2]);
+    expect(enqueue).toHaveBeenCalledWith({ id: 'png', kind: 'convert' }, [jpg, jpg2]);
+    notify.mockClear();
+    enqueue.mockClear();
+    await dispatchWedge(d, 'convert', 'jpg', [jpg, jpg2]);
+    expect(enqueue).not.toHaveBeenCalled();
+  });
   it('opens a window for editor tools and queues plain ones', async () => {
     const { d, show, enqueue } = deps();
     await dispatchWedge(d, 'tools', 'crop', [png]);

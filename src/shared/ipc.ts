@@ -25,6 +25,11 @@ export const ToolWindowName = z.enum([
   'add-bg',
   'annotate',
   'collage',
+  'frames',
+  'delete-pages',
+  'upscale',
+  'remove-bg',
+  'password',
 ]);
 export type ToolWindowName = z.infer<typeof ToolWindowName>;
 const Verdict = z.object({
@@ -104,9 +109,35 @@ export const CHANNELS = {
   },
   'toolwin:probe': {
     request: z.object({ path: Path }),
-    response: z.object({ durationSec: z.number().nullable(), pages: z.number().nullable() }),
+    response: z.object({
+      durationSec: z.number().nullable(),
+      pages: z.number().nullable(),
+      /** For PDFs and ZIPs: whether a password is needed to open them. Null when it cannot be told. */
+      encrypted: z.boolean().nullable(),
+    }),
+  },
+  'pdf:thumbs': {
+    request: z.object({
+      path: Path,
+      from: z.number().int().min(1),
+      count: z.number().int().min(1).max(40),
+      width: z.number().int().min(80).max(400),
+    }),
+    response: z.object({
+      pages: z.number(),
+      thumbs: z.array(z.custom<Uint8Array>((v) => v instanceof Uint8Array)),
+    }),
   },
   'toolwin:close': { request: z.undefined(), response: z.void() },
+  'pdfrender:res': {
+    request: z.object({
+      id: z.number().int(),
+      ok: z.boolean(),
+      error: z.string().max(500).optional(),
+      value: z.unknown().optional(),
+    }),
+    response: z.void(),
+  },
   'float:list': {
     request: z.undefined(),
     response: z.array(z.object({ path: Path, name: z.string() })),
@@ -171,6 +202,15 @@ export const EVENTS = {
   'toolwin:init': z.object({
     tool: ToolWindowName,
     paths: z.array(Path),
+  }),
+  'pdfrender:req': z.object({
+    id: z.number().int(),
+    op: z.enum(['open', 'size', 'image', 'text', 'cleanup', 'close']),
+    doc: z.number().int().optional(),
+    n: z.number().int().optional(),
+    scale: z.number().optional(),
+    format: z.enum(['png', 'jpg']).optional(),
+    data: z.custom<Uint8Array>((v) => v instanceof Uint8Array).optional(),
   }),
   'loader:update': z.object({
     percent: z.number().min(0).max(100),

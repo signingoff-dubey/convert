@@ -1,9 +1,19 @@
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
-import { cpus } from 'node:os';
+import { cpus, tmpdir } from 'node:os';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
-import { link, lstat, mkdir, readdir, rename, rm, unlink } from 'node:fs/promises';
+import {
+  link,
+  lstat,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rename,
+  rm,
+  unlink,
+} from 'node:fs/promises';
 import type { Settings } from '../settings/schema';
 import { logger } from '../services/log';
 import { NamingError, resolveOutput, resolveOutputDir, uniqueSibling } from './naming';
@@ -37,7 +47,9 @@ export interface JobSnapshot {
   outputDir?: string;
   /** How many files or folders were created. */
   outputCount?: number;
-  note?: 'already-compact';
+  note?: 'already-compact' | 'text-copied';
+  /** For Copy text: how many characters went to the clipboard. */
+  copiedChars?: number;
   error?: { code: ErrorCode; message: string };
   undoable: boolean;
 }
@@ -54,7 +66,8 @@ interface Job {
   controller: AbortController;
   output?: string;
   outputs?: string[];
-  note?: 'already-compact';
+  note?: 'already-compact' | 'text-copied';
+  copiedChars?: number;
   error?: { code: ErrorCode; message: string };
   finishedAt?: number;
   stallTimer?: NodeJS.Timeout;
@@ -66,6 +79,8 @@ export interface QueueDeps {
   /** Sends a file to the Recycle Bin. Only called when the user enabled that option. */
   trash(path: string): Promise<void>;
   exists?(path: string): boolean;
+  /** Puts text on the clipboard. Only Copy text uses it. */
+  copyText?(text: string): void;
 }
 
 export function toJobError(error: unknown): { code: ErrorCode; message: string } {
@@ -226,13 +241,24 @@ export class JobQueue extends EventEmitter {
       const settings = this.deps.getSettings();
       const st = await lstat(job.input).catch(() => null);
       if (!st) throw new JobError('E_UNSUPPORTED', 'source file is missing');
+      if (job.op.id === 'copy-text') {
+        await this.copyText(job, settings, bump);
+        return this.finish(job, 'ok');
+      }
       const engine = selectEngine(job.op, job.input);
-      const plan: OutputKind = planOutput(job.op, job.input);
+      const planned: OutputKind = planOutput(job.op, job.input);
+      if (planned.type === 'clipboard') throw new JobError('E_UNSUPPORTED', 'nothing to save');
+      const plan = planned;
       const naming = settings.output;
+      // Several files into one ZIP: name it after their folder, so Trip\\a.jpg and Trip\\b.jpg become Trip.zip.
+      const nameSource =
+        job.op.id === 'zip' && job.allInputs.length > 1
+          ? path.join(path.dirname(job.input), path.basename(path.dirname(job.input)) || 'Archive')
+          : job.input;
       const finalPath =
-        plan.type === 'dir'
+        plan.type === 'dir' || plan.type === 'folder'
           ? resolveOutputDir(job.input, naming, this.exists, plan.suffix ?? '', path)
-          : resolveOutput(job.input, plan.ext, naming, this.exists, plan.suffix ?? '', path);
+          : resolveOutput(nameSource, plan.ext, naming, this.exists, plan.suffix ?? '', path);
       const parent = path.dirname(finalPath);
       await mkdir(parent, { recursive: true });
       tempDir = path.join(parent, `~convert-${job.id.slice(0, 8)}`);
@@ -264,6 +290,17 @@ export class JobQueue extends EventEmitter {
       if (plan.type === 'dir') {
         // Several files: they go straight into the original's folder, not into a new folder.
         job.outputs = await this.scatter(outDir, parent);
+      } else if (plan.type === 'folder') {
+        const entries = (await readdir(outDir)).filter((n) => !n.startsWith('.'));
+        if (entries.length === 0)
+          throw new JobError('E_UNKNOWN', 'the converter produced no files');
+        if (plan.collapseSingle && entries.length === 1) {
+          // One item inside the archive: put it beside the archive instead of wrapping it in a folder.
+          job.outputs = await this.scatter(outDir, parent);
+        } else {
+          await moveNoClobber(outDir, finalPath, true, this.exists);
+          job.outputs = [finalPath];
+        }
       } else {
         await moveNoClobber(tempPath, finalPath, false, this.exists);
         job.outputs = [finalPath];
@@ -290,6 +327,54 @@ export class JobQueue extends EventEmitter {
     } finally {
       clearTimeout(job.stallTimer);
       if (tempDir) await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+    }
+  }
+
+  /** Reads the text of every file (pictures by OCR) and puts it on the clipboard instead of writing a file. */
+  private async copyText(job: Job, settings: Settings, bump: () => void): Promise<void> {
+    if (!this.deps.copyText) throw new JobError('E_UNKNOWN', 'no clipboard');
+    const dir = await mkdtemp(path.join(tmpdir(), 'convert-text-'));
+    const op: Operation = { id: 'txt', kind: 'convert' };
+    const texts: string[] = [];
+    let firstError: unknown;
+    try {
+      const total = job.allInputs.length;
+      for (const [i, file] of job.allInputs.entries()) {
+        if (job.controller.signal.aborted) throw new JobError('E_CANCELLED');
+        const tempPath = path.join(dir, `t${i}.txt`);
+        try {
+          await selectEngine(op, file).run(op, file, {
+            tempPath,
+            tempDir: dir,
+            outDir: dir,
+            signal: job.controller.signal,
+            onProgress: (pct) => {
+              job.percent = Math.max(
+                job.percent,
+                Math.min(99, Math.round(((i + pct / 100) / total) * 100)),
+              );
+              bump();
+              this.publish(job);
+            },
+            settings,
+            allInputs: [file],
+            officePath: this.deps.getOfficePath(),
+          });
+          const text = (await readFile(tempPath, 'utf8')).replace(/\s+$/, '');
+          texts.push(total > 1 ? `${path.basename(file)}\n${text}` : text);
+        } catch (error) {
+          if (job.controller.signal.aborted) throw error;
+          firstError ??= error;
+        }
+      }
+      if (texts.length === 0) throw firstError ?? new JobError('E_UNSUPPORTED', 'no text found');
+      const text = texts.join('\n\n');
+      this.deps.copyText(text);
+      job.copiedChars = text.length;
+      job.note = 'text-copied';
+      job.percent = 100;
+    } finally {
+      await rm(dir, { recursive: true, force: true }).catch(() => undefined);
     }
   }
 
@@ -341,6 +426,7 @@ export class JobQueue extends EventEmitter {
       outputDir: job.output ? path.dirname(job.output) : undefined,
       outputCount: job.outputs?.length,
       note: job.note,
+      copiedChars: job.copiedChars,
       error: job.error,
       undoable: job.status === 'ok' && (job.outputs?.length ?? 0) > 0,
     };

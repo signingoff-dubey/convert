@@ -18,6 +18,11 @@ const SIZES: Record<ToolWindowName, { width: number; height: number; resizable: 
   'add-bg': { width: 1020, height: 740, resizable: true },
   annotate: { width: 1100, height: 780, resizable: true },
   collage: { width: 1020, height: 740, resizable: true },
+  frames: { width: 500, height: 600, resizable: false },
+  'delete-pages': { width: 900, height: 700, resizable: true },
+  upscale: { width: 500, height: 560, resizable: false },
+  'remove-bg': { width: 980, height: 700, resizable: true },
+  password: { width: 480, height: 460, resizable: false },
 };
 
 const MAX_OPEN = 6;

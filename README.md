@@ -65,7 +65,14 @@ Keys are configurable under Settings, then Triggers, with a conflict checker. Se
 
 Compress (target size, percentage or preset, with resize), Redact (detects faces and text on your computer, then covers or blurs them), Metadata (edit camera and location tags, or remove them), Edit (exposure, colour, detail, effects, rotate, flip), Crop (ratio or exact size), Add BG (colour, gradient or image behind a photo), Annotate (arrows, shapes, text, numbered callouts), and Collage (grid, row, column or featured).
 
-Other types have their own tools: video and audio Trim, Compress, Extract audio and Normalize; PDF Compress, Split and Merge.
+Other types have their own tools:
+
+- **Images (one or many):** Compress, Upscale, Remove BG, Copy text (OCR), and, for one image, Redact, Metadata, Edit, Crop, Add BG, Annotate; Collage for two or more. Convert any image to TXT to read its text.
+- **PDF:** Compress, Split, **Delete pages** (a thumbnail of every page, untick the ones to drop), **Merge** (two or more), **Password** (add or remove), Copy text. Scanned PDFs are read with OCR.
+- **Video:** Trim, Compress, Extract audio, **Extract frames** into a folder, **Merge** (two or more). **Audio:** Trim, Compress, Normalize, Merge.
+- **Text and Markdown:** Merge two or more; Markdown, text, HTML and EPUB convert to PDF without installing anything.
+- **ZIP:** Password (add or remove). Select several ZIPs and choose Extract here: each unzips into its own folder.
+- **Actions:** Zip any mix of files and folders into one archive.
 
 ## Stack
 

@@ -8,6 +8,8 @@ import { sheetsEngine } from '../engines/sheets';
 import { subsEngine } from '../engines/subs';
 import { mediaKindOf } from '../engines/av-args';
 import { officeEngine } from '../engines/office-engine';
+import { ocrEngine } from '../engines/ocr';
+import { protectEngine } from '../engines/protect';
 import { JobError, type Engine, type Operation, type OutputKind } from './types';
 
 export const ENGINES: readonly Engine[] = [
@@ -19,10 +21,12 @@ export const ENGINES: readonly Engine[] = [
   subsEngine,
   archiveEngine,
   officeEngine,
+  ocrEngine,
+  protectEngine,
 ];
 
 /** Operations that consume the whole selection as one job instead of one job per file. */
-export const MULTI_INPUT_OPS = new Set(['merge', 'collage']);
+export const MULTI_INPUT_OPS = new Set(['merge', 'collage', 'zip', 'copy-text']);
 
 /**
  * True when the whole selection is one job: merge and collage always, and the PDF wedge when several
@@ -38,6 +42,16 @@ export function isMultiInput(op: Operation, paths: readonly string[]): boolean {
   );
 }
 
+/** A merged video keeps the first file's container when ffmpeg can write it; audio keeps its own format. */
+function mergedMediaExt(input: string): string {
+  const ext = extensionOf(input);
+  return mediaKindOf(input) === 'video'
+    ? ['mp4', 'mkv', 'webm', 'mov'].includes(ext)
+      ? ext
+      : 'mp4'
+    : ext;
+}
+
 export function selectEngine(op: Operation, input: string): Engine {
   const engine = ENGINES.find((e) => e.canHandle(op, input));
   if (!engine)
@@ -49,7 +63,8 @@ export function selectEngine(op: Operation, input: string): Engine {
 export function planOutput(op: Operation, input: string): OutputKind {
   const inExt = extensionOf(input);
   if (op.kind === 'convert') {
-    if (op.id === 'extract-here') return { type: 'dir' };
+    // Each archive gets its own folder (or none, when it holds a single item), beside the archive itself.
+    if (op.id === 'extract-here') return { type: 'folder', collapseSingle: true };
     // A gzip stream holds one file, so multi-file archives become gzip-compressed tars.
     if (op.id === 'gz' && ['zip', 'tar', 'rar'].includes(inExt))
       return { type: 'file', ext: 'tar.gz' };
@@ -60,7 +75,28 @@ export function planOutput(op: Operation, input: string): OutputKind {
     return { type: 'file', ext: mediaKindOf(input) ? avOutputExt(op.id, 'convert', input) : op.id };
   }
   if (op.id === 'split') return { type: 'dir' };
-  if (op.id === 'merge') return { type: 'file', ext: 'pdf', suffix: '-merged' };
+  if (op.id === 'frames') return { type: 'folder', suffix: ' frames' };
+  if (op.id === 'copy-text') return { type: 'clipboard' };
+  if (op.id === 'merge') {
+    const ext =
+      inExt === 'md' || inExt === 'txt' ? inExt : inExt === 'pdf' ? 'pdf' : mergedMediaExt(input);
+    return { type: 'file', ext, suffix: '-merged' };
+  }
+  if (op.id === 'password')
+    return {
+      type: 'file',
+      ext: inExt,
+      suffix: op.params?.mode === 'remove' ? '-unlocked' : '-protected',
+    };
+  if (op.id === 'delete-pages') return { type: 'file', ext: 'pdf', suffix: '-edited' };
+  if (op.id === 'upscale')
+    return {
+      type: 'file',
+      ext: toolOutputExt(input),
+      suffix: `-${Number(op.params?.factor ?? 2)}x`,
+    };
+  if (op.id === 'remove-bg') return { type: 'file', ext: 'png', suffix: '-nobg' };
+  if (op.id === 'zip') return { type: 'file', ext: 'zip' };
   if (op.id === 'collage') {
     return { type: 'file', ext: op.params?.format === 'jpg' ? 'jpg' : 'png', suffix: '-collage' };
   }

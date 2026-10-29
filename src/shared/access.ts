@@ -1,5 +1,6 @@
 /** Which channels and events each window may use. Kept free of heavy imports: the preload bundles it. */
-export type PageName = 'overlay' | 'settings' | 'toast' | 'toolwin' | 'float' | 'loader';
+export type PageName =
+  'overlay' | 'settings' | 'toast' | 'toolwin' | 'float' | 'loader' | 'pdfrender';
 
 /** Which channels and events each window may use. Enforced in the preload and again in main. */
 export const WINDOW_ACCESS: Record<PageName, { invoke: readonly string[]; on: readonly string[] }> =
@@ -52,6 +53,7 @@ export const WINDOW_ACCESS: Record<PageName, { invoke: readonly string[]; on: re
       invoke: [
         'toolwin:run',
         'toolwin:probe',
+        'pdf:thumbs',
         'toolwin:close',
         'settings:get',
         'dialog:pick-image',
@@ -62,6 +64,7 @@ export const WINDOW_ACCESS: Record<PageName, { invoke: readonly string[]; on: re
       ],
       on: ['toolwin:init', 'settings:changed'],
     },
+    pdfrender: { invoke: ['pdfrender:res'], on: ['pdfrender:req'] },
     loader: {
       invoke: ['settings:get'],
       on: ['loader:update', 'settings:changed'],

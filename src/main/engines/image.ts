@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, resolve } from 'node:path';
 import { PDFDocument } from 'pdf-lib';
 import sharp, { type OverlayOptions, type ResizeOptions, type Sharp } from 'sharp';
+import { DEFAULT_BG, removeBackground } from '../../shared/bg-remove';
 import { extensionOf } from '../../shared/formats';
 import {
   HEX,
@@ -42,6 +43,8 @@ const TOOLS = new Set([
   'collage',
   'redact',
   'annotate-save',
+  'upscale',
+  'remove-bg',
 ]);
 const IMAGE_EXTS = new Set(['jpg', 'png', 'webp', 'heic', 'tiff', 'avif', 'bmp', 'svg']);
 
@@ -443,6 +446,65 @@ async function annotateSave(params: Params, ctx: RunContext, outExt: string): Pr
   }
 }
 
+const MAX_UPSCALED_SIDE = 16000;
+const MAX_UPSCALED_PIXELS = 200_000_000;
+
+/** Larger by 2x, 3x or 4x with Lanczos resampling and an optional light sharpen. Not AI: no new detail is invented. */
+async function upscale(
+  input: string,
+  ctx: RunContext,
+  params: Params,
+  outExt: string,
+): Promise<void> {
+  const factor = Number(params.factor ?? 2);
+  if (![2, 3, 4].includes(factor)) throw new JobError('E_UNSUPPORTED', 'upscale factor');
+  const oriented = await openOriented(input);
+  const { data, info } = await oriented.toBuffer({ resolveWithObject: true });
+  const width = info.width * factor;
+  const height = info.height * factor;
+  if (
+    width > MAX_UPSCALED_SIDE ||
+    height > MAX_UPSCALED_SIDE ||
+    width * height > MAX_UPSCALED_PIXELS
+  )
+    throw new JobError('E_UNSUPPORTED', `${factor}x would be too large (${width} by ${height})`);
+  let pipeline = sharp(data).resize(width, height, { kernel: 'lanczos3' });
+  if (params.sharpen !== false && params.sharpen !== 'false')
+    pipeline = pipeline.sharpen({ sigma: 0.6 + factor * 0.2, m1: 0.8, m2: 2 });
+  await encode(pipeline, outExt, ctx.settings.output.imageQuality, ctx.tempPath);
+}
+
+/** Makes a plain background transparent; always a PNG, since only PNG keeps transparency everywhere. */
+async function removeBg(input: string, ctx: RunContext, params: Params): Promise<void> {
+  const { data, info } = await (
+    await openOriented(input)
+  )
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const color = typeof params.color === 'string' ? /^#?([0-9a-f]{6})$/i.exec(params.color) : null;
+  const share = removeBackground(data, info.width, info.height, {
+    tolerance: Number(params.tolerance ?? DEFAULT_BG.tolerance),
+    feather: Number(params.feather ?? DEFAULT_BG.feather),
+    contiguous: params.contiguous !== false && params.contiguous !== 'false',
+    color: color
+      ? [
+          parseInt((color[1] as string).slice(0, 2), 16),
+          parseInt((color[1] as string).slice(2, 4), 16),
+          parseInt((color[1] as string).slice(4, 6), 16),
+        ]
+      : null,
+  });
+  if (share < 0.001)
+    throw new JobError(
+      'E_UNSUPPORTED',
+      'no plain background was found to remove; try a higher tolerance',
+    );
+  await sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } })
+    .png({ compressionLevel: 9 })
+    .toFile(ctx.tempPath);
+}
+
 // ---- Engine ------------------------------------------------------------------------------
 
 export const imageEngine: Engine = {
@@ -539,6 +601,10 @@ export const imageEngine: Engine = {
             params,
             outExt === 'png' || outExt === 'jpg' ? outExt : 'png',
           );
+        case 'upscale':
+          return await upscale(input, ctx, params, outExt);
+        case 'remove-bg':
+          return await removeBg(input, ctx, params);
         case 'collage':
           return await collage(ctx.allInputs, ctx, params, params.format === 'jpg' ? 'jpg' : 'png');
         case 'redact':

@@ -1,7 +1,15 @@
 import type { PageName } from '../shared/access';
 import { expose } from './bridge';
 
-const PAGES: readonly PageName[] = ['overlay', 'settings', 'toast', 'toolwin', 'float', 'loader'];
+const PAGES: readonly PageName[] = [
+  'overlay',
+  'settings',
+  'toast',
+  'toolwin',
+  'float',
+  'loader',
+  'pdfrender',
+];
 const arg = process.argv.find((a) => a.startsWith('--convert-page='))?.split('=')[1];
 const page = PAGES.find((p) => p === arg);
 

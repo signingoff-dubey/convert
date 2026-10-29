@@ -4,6 +4,11 @@ import { registerPreviewScheme, installPreviewHandler } from './protocol';
 import { ToolWindowName } from '../shared/ipc';
 import { dispatchWedge, type DispatchDeps } from './dispatch';
 import { shutdownDetectors } from './engines/detect';
+import { setHtmlToPdf } from './engines/html-pdf';
+import { shutdownOcr } from './engines/ocr';
+import { setPdfBackend } from './engines/pdf';
+import { PdfHost } from './services/pdf-host';
+import { printHtmlToPdf } from './services/print-pdf';
 import { detectOffice } from './engines/binaries';
 import { heicEncoderAvailable } from './engines/heic';
 import { shutdownExiftool } from './engines/meta';
@@ -52,8 +57,11 @@ async function main(): Promise<void> {
   setLogLevel(settings.load().advanced.logLevel);
   const state = new AppState(userData);
   installPreviewHandler();
+  setHtmlToPdf(printHtmlToPdf);
 
   const registry = new WindowRegistry();
+  const pdfHost = new PdfHost(registry);
+  setPdfBackend(pdfHost.open);
   const prefersDark = (): boolean => nativeTheme.shouldUseDarkColors;
   const flags = {
     office: detectOffice(settings.get().engines.officeEnginePath) !== null,
@@ -65,6 +73,7 @@ async function main(): Promise<void> {
     getSettings: () => settings.get(),
     getOfficePath: () => detectOffice(settings.get().engines.officeEnginePath),
     trash: (p) => shell.trashItem(p),
+    copyText: (text) => clipboard.writeText(text),
   });
 
   const toastWindow = new ToastWindow(() => settings.get(), registry);
@@ -179,6 +188,7 @@ async function main(): Promise<void> {
     float,
     state,
     registry,
+    pdfHost,
     dispatch: dispatchDeps,
     shortcuts,
     userData,
@@ -235,6 +245,15 @@ async function main(): Promise<void> {
       await toolwin.show(parsed.data, rest.join(':').split('|'));
   }
 
+  // Developer aid, only in unpackaged runs: --dev-job=txt:C:\\path\\scan.png runs one conversion (or tool, with tool:).
+  const devJob = app.isPackaged ? undefined : process.argv.find((a) => a.startsWith('--dev-job='));
+  if (devJob) {
+    const [spec, ...files] = devJob.slice('--dev-job='.length).split('|');
+    const [kind, id, ...first] = (spec ?? '').split(':');
+    if ((kind === 'convert' || kind === 'tool') && id)
+      queue.enqueue({ id, kind }, [first.join(':'), ...files]);
+  }
+
   const hidden = process.argv.includes('--hidden');
   if (!state.firstRunDone || !hidden) await settingsWindow.open();
 
@@ -250,10 +269,12 @@ async function main(): Promise<void> {
     overlay.destroy();
     toastWindow.destroy();
     loader.destroy();
+    pdfHost.destroy();
     float.destroy();
     tray.destroy();
     void shutdownExiftool();
     void shutdownDetectors();
+    void shutdownOcr();
   });
   log.info(`Convert ${app.getVersion()} started`);
 }

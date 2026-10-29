@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import {
   existsSync,
   mkdtempSync,
@@ -20,11 +20,20 @@ import type { JobResult, Operation, Params } from '../src/main/jobs/types';
 import { defaultSettings, type Settings } from '../src/main/settings/schema';
 import { probeDuration } from '../src/main/engines/av';
 import { shutdownExiftool } from '../src/main/engines/meta';
+import { bandCuts, shutdownOcr } from '../src/main/engines/ocr';
+import { setHtmlToPdf } from '../src/main/engines/html-pdf';
+import { createCanvas } from '@napi-rs/canvas';
 
 let dir: string;
 let settings: Settings;
 
-const sha = (p: string) => createHash('sha256').update(readFileSync(p)).digest('hex');
+const sha = (p: string): string => {
+  const h = createHash('sha256');
+  if (statSync(p).isDirectory()) {
+    for (const n of readdirSync(p).sort()) h.update(n).update(sha(join(p, n)));
+  } else h.update(readFileSync(p));
+  return h.digest('hex');
+};
 const magic = (p: string, n = 12) => readFileSync(p).subarray(0, n);
 const ffmpeg = () => ffmpegPath() as string;
 
@@ -35,8 +44,10 @@ function queue(extra: Partial<Settings['output']> = {}) {
     getSettings: () => settings,
     getOfficePath: () => null,
     trash: async () => undefined,
+    copyText: (text) => void clipboard.push(text),
   });
 }
+const clipboard: string[] = [];
 
 async function run(
   id: string,
@@ -120,6 +131,7 @@ beforeAll(() => {
 });
 afterAll(async () => {
   await shutdownExiftool();
+  await shutdownOcr();
   rmSync(dir, { recursive: true, force: true });
 });
 
@@ -409,10 +421,13 @@ describe('documents, sheets, subtitles, archives', () => {
     const gz = ok((await run('gz', 'convert', [zip]))[0] as JobResult);
     const extracted = (await run('extract-here', 'convert', [gz]))[0] as JobResult;
     ok(extracted);
-    // The contents land next to the archive, with no wrapping folder; names that were taken get (1), (2).
-    const names = (extracted.outputs ?? []).map((o) => basename(o));
-    expect(names.some((n) => /^a( \(\d+\))?\.txt$/.test(n))).toBe(true);
-    for (const o of extracted.outputs ?? []) expect(dirname(o)).toBe(dirname(gz));
+    // Two items inside: they go into a folder named after the archive, beside the archive.
+    expect(extracted.outputs).toHaveLength(1);
+    const unpacked = extracted.outputs?.[0] as string;
+    expect(statSync(unpacked).isDirectory()).toBe(true);
+    expect(basename(unpacked)).toMatch(/^payload( \(\d+\))?$/);
+    expect(dirname(unpacked)).toBe(dirname(gz));
+    expect(readdirSync(unpacked).sort()).toEqual(['a.txt', 'b.txt']);
   }, 30_000);
 });
 
@@ -499,4 +514,438 @@ describe('results sit beside the original', () => {
     expect(seen.at(-1)).toMatchObject({ outputDir: dir, outputCount: 2 });
     expect(readdirSync(dir).filter((f) => f.startsWith('~convert'))).toEqual([]);
   }, 60_000);
+});
+
+describe('unzip into its own folder, and extract video frames', () => {
+  it('puts a lone item beside the archive instead of wrapping it', async () => {
+    const solo = join(dir, 'solo-src');
+    execFileSync('mkdir', [solo]);
+    writeFileSync(join(solo, 'only.txt'), 'one');
+    const zip = join(dir, 'solo.zip');
+    execFileSync(sevenZipPath() as string, ['a', '-tzip', zip, 'only.txt'], { cwd: solo });
+    const r = (await run('extract-here', 'convert', [zip]))[0] as JobResult;
+    ok(r);
+    expect(r.outputs?.map((o) => basename(o))).toEqual(['only.txt']);
+    expect(dirname(r.outputs?.[0] as string)).toBe(dirname(zip));
+  }, 30_000);
+
+  it('unzips several archives, each into its own folder', async () => {
+    const zips: string[] = [];
+    for (const n of ['one', 'two', 'three']) {
+      const src = join(dir, `src-${n}`);
+      execFileSync('mkdir', [src]);
+      writeFileSync(join(src, 'a.txt'), n);
+      writeFileSync(join(src, 'b.txt'), n);
+      const z = join(dir, `${n}-set.zip`);
+      execFileSync(sevenZipPath() as string, ['a', '-tzip', z, '.'], { cwd: src });
+      zips.push(z);
+    }
+    const results = await run('extract-here', 'convert', zips);
+    expect(results).toHaveLength(3);
+    for (const [i, r] of results.entries()) {
+      const folder = ok(r);
+      expect(basename(folder)).toBe(basename(zips[i] as string, '.zip'));
+      expect(readFileSync(join(folder, 'a.txt'), 'utf8')).toBe(['one', 'two', 'three'][i]);
+    }
+  }, 60_000);
+
+  it('extracts one picture per second into a folder named after the video', async () => {
+    const src = makeVideo('frames-src.mp4', 3);
+    const r = (await run('frames', 'tool', [src], { every: 1, format: 'png' }))[0] as JobResult;
+    const folder = ok(r);
+    expect(basename(folder)).toBe('frames-src frames');
+    expect(dirname(folder)).toBe(dirname(src));
+    const files = readdirSync(folder).sort();
+    expect(files).toEqual(['frames-src-0001.png', 'frames-src-0002.png', 'frames-src-0003.png']);
+    expect((await sharp(join(folder, files[0] as string)).metadata()).width).toBe(160);
+  }, 60_000);
+
+  it('honours the frame limit and the JPG format, and numbers a second run', async () => {
+    const src = makeVideo('frames-two.mp4', 4);
+    const first = (
+      await run('frames', 'tool', [src], { every: 0.5, format: 'jpg', max: 3 })
+    )[0] as JobResult;
+    expect(readdirSync(ok(first)).filter((f) => f.endsWith('.jpg'))).toHaveLength(3);
+    const second = (await run('frames', 'tool', [src], { every: 2 }))[0] as JobResult;
+    expect(basename(ok(second))).toBe('frames-two frames (1)');
+  }, 60_000);
+
+  it('rejects an absurd interval and audio-only input', async () => {
+    const src = makeVideo('frames-bad.mp4', 1);
+    expect(((await run('frames', 'tool', [src], { every: 0 }))[0] as JobResult).error?.code).toBe(
+      'E_UNSUPPORTED',
+    );
+    const wav = makeAudio('frames-bad.wav');
+    expect(((await run('frames', 'tool', [wav]))[0] as JobResult).error?.code).toBe(
+      'E_UNSUPPORTED',
+    );
+  }, 60_000);
+});
+
+describe('zip many files and folders', () => {
+  const list = (zip: string): string[] =>
+    execFileSync(sevenZipPath() as string, ['l', '-slt', zip])
+      .toString()
+      .split('\n')
+      .filter((l) => l.startsWith('Path = '))
+      .map((l) => l.slice(7).trim())
+      .slice(1)
+      .sort();
+
+  it('puts several files into one zip named after their folder, beside them', async () => {
+    const trip = join(dir, 'Trip');
+    execFileSync('mkdir', [trip]);
+    const files = ['a.txt', 'b.txt', 'c.txt'].map((n) => {
+      writeFileSync(join(trip, n), n);
+      return join(trip, n);
+    });
+    const r = (await run('zip', 'tool', files))[0] as JobResult;
+    const out = ok(r);
+    expect(basename(out)).toBe('Trip.zip');
+    expect(dirname(out)).toBe(trip);
+    expect(list(out)).toEqual(['a.txt', 'b.txt', 'c.txt']);
+    expect(await run('zip', 'tool', files)).toHaveLength(1);
+  }, 30_000);
+
+  it('names a single file or folder after itself and keeps folder contents', async () => {
+    const proj = join(dir, 'proj');
+    execFileSync('mkdir', ['-p', join(proj, 'sub')]);
+    writeFileSync(join(proj, 'sub', 'deep.txt'), 'x');
+    writeFileSync(join(proj, 'top.txt'), 'y');
+    const out = ok((await run('zip', 'tool', [proj]))[0] as JobResult);
+    expect(basename(out)).toBe('proj.zip');
+    expect(list(out)).toEqual(['proj', 'proj/sub', 'proj/sub/deep.txt', 'proj/top.txt']);
+    const single = join(dir, 'lonely.txt');
+    writeFileSync(single, 'z');
+    expect(basename(ok((await run('zip', 'tool', [single]))[0] as JobResult))).toBe('lonely.zip');
+  }, 30_000);
+
+  it('mixes files and folders, never overwrites, and treats odd names as plain names', async () => {
+    const mix = join(dir, 'Mix');
+    execFileSync('mkdir', ['-p', join(mix, 'folder')]);
+    writeFileSync(join(mix, 'folder', 'in.txt'), '1');
+    writeFileSync(join(mix, '@list.txt'), '2');
+    writeFileSync(join(mix, '-dash.txt'), '3');
+    const items = [join(mix, 'folder'), join(mix, '@list.txt'), join(mix, '-dash.txt')];
+    const first = ok((await run('zip', 'tool', items))[0] as JobResult);
+    expect(list(first)).toEqual(['-dash.txt', '@list.txt', 'folder', 'folder/in.txt']);
+    const second = ok((await run('zip', 'tool', items))[0] as JobResult);
+    expect(basename(first)).toBe('Mix.zip');
+    expect(basename(second)).toBe('Mix (1).zip');
+  }, 30_000);
+
+  it('works for a mixed selection that cannot be converted at all, and leaves sources alone', async () => {
+    const odd = join(dir, 'odd.unknownext');
+    const other = join(dir, 'other.txt');
+    writeFileSync(odd, 'q');
+    writeFileSync(other, 'r');
+    const r = (await run('zip', 'tool', [odd, other]))[0] as JobResult;
+    expect(r.status).toBe('ok');
+  }, 30_000);
+});
+
+// ---- Text, merge, passwords, delete pages, upscale, background removal --------------------
+
+/** A picture of text, such as a screenshot or a scan. Each string becomes one large line. */
+function makeTextImage(name: string, lines: string[], gap = 0): string {
+  const lineH = 90 + gap;
+  const canvas = createCanvas(1500, 80 + lines.length * lineH);
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#000000';
+  ctx.font = 'bold 56px sans-serif';
+  lines.forEach((text, i) => ctx.fillText(text, 40, 110 + i * lineH));
+  const p = join(dir, name);
+  writeFileSync(p, canvas.toBuffer('image/png'));
+  return p;
+}
+
+describe('reading text from pictures', () => {
+  it('finds band boundaries only inside blank rows', () => {
+    const blank = Array.from({ length: 2000 }, (_, y) => y % 200 > 150);
+    const cuts = bandCuts(blank, 4);
+    expect(cuts.length).toBeGreaterThan(0);
+    for (const c of cuts) expect(blank[c]).toBe(true);
+    expect(bandCuts(blank, 1)).toEqual([]); // one worker: nothing to split
+    expect(
+      bandCuts(
+        Array.from({ length: 300 }, () => true),
+        4,
+      ),
+    ).toEqual([]); // short pages are read whole
+  });
+
+  it('turns a picture into a TXT, keeping the lines in order, and leaves the source alone', async () => {
+    const lines = ['HELLO WORLD', 'SECOND LINE HERE', 'THIRD LINE', 'FOURTH ONE', 'FIFTH LAST'];
+    const src = makeTextImage('words.png', lines, 120);
+    const r = (await run('txt', 'convert', [src]))[0] as JobResult;
+    const text = readFileSync(ok(r), 'utf8');
+    expect(basename(ok(r))).toBe('words.txt');
+    let at = -1;
+    for (const line of lines) {
+      const found = text.toUpperCase().indexOf(line.split(' ')[0] as string);
+      expect(found, line).toBeGreaterThan(at);
+      at = found;
+    }
+  }, 120_000);
+
+  it('says so when a picture has no text', async () => {
+    const blank = await makePng('plain.png', 400, 300);
+    const r = (await run('txt', 'convert', [blank]))[0] as JobResult;
+    expect(r.status).toBe('error');
+    expect(r.error?.code).toBe('E_UNSUPPORTED');
+  }, 60_000);
+
+  it('copies text to the clipboard from pictures and documents, with no output file', async () => {
+    const pic = makeTextImage('copyme.png', ['CLIPBOARD TEXT']);
+    const doc = join(dir, 'copydoc.md');
+    writeFileSync(doc, '# Heading\n\nBody text');
+    clipboard.length = 0;
+    const one = (await run('copy-text', 'tool', [pic]))[0] as JobResult;
+    expect(one.status).toBe('ok');
+    expect(one.outputs).toBeUndefined();
+    expect(clipboard[0]?.toUpperCase()).toContain('CLIPBOARD');
+    const both = (await run('copy-text', 'tool', [pic, doc]))[0] as JobResult;
+    expect(both.status).toBe('ok');
+    expect(clipboard[1]).toContain('copyme.png\n');
+    expect(clipboard[1]).toContain('copydoc.md\n');
+    expect(clipboard[1]).toContain('Body text');
+    expect(existsSync(join(dir, 'copyme.txt'))).toBe(false);
+  }, 120_000);
+});
+
+describe('everything to TXT, and Markdown to PDF', () => {
+  it('turns a spreadsheet into readable text', async () => {
+    const csv = join(dir, 'sheet.csv');
+    writeFileSync(csv, 'name,qty\nApple,3\n"Pear, green",4\n');
+    const out = ok((await run('txt', 'convert', [csv]))[0] as JobResult);
+    expect(readFileSync(out, 'utf8')).toBe('name\tqty\nApple\t3\nPear, green\t4\n');
+  });
+
+  it('renders Markdown to a PDF with the built-in renderer', async () => {
+    const seen: string[] = [];
+    setHtmlToPdf(async (html, pdf) => {
+      seen.push(readFileSync(html, 'utf8'));
+      const doc = await PDFDocument.create();
+      doc.addPage();
+      writeFileSync(pdf, await doc.save());
+    });
+    try {
+      const md = join(dir, 'notes.md');
+      writeFileSync(md, '# Title\n\n- one\n- two\n');
+      const out = ok((await run('pdf', 'convert', [md]))[0] as JobResult);
+      expect(magic(out, 4).toString()).toBe('%PDF');
+      expect(seen[0]).toContain('<h1>Title</h1>');
+      expect(seen[0]).toContain('<li>one</li>');
+    } finally {
+      setHtmlToPdf(null);
+    }
+  });
+});
+
+describe('merge', () => {
+  it('joins text and Markdown files in the given order', async () => {
+    const a = join(dir, 'm-a.txt');
+    const b = join(dir, 'm-b.txt');
+    writeFileSync(a, 'first\r\n');
+    writeFileSync(b, 'second');
+    const out = ok((await run('merge', 'tool', [b, a]))[0] as JobResult);
+    expect(basename(out)).toBe('m-b-merged.txt');
+    expect(readFileSync(out, 'utf8')).toBe('second\n\nfirst\n');
+    const md1 = join(dir, 'x1.md');
+    const md2 = join(dir, 'x2.md');
+    writeFileSync(md1, '# One');
+    writeFileSync(md2, '# Two');
+    expect(basename(ok((await run('merge', 'tool', [md1, md2]))[0] as JobResult))).toBe(
+      'x1-merged.md',
+    );
+  });
+
+  it('joins videos of different sizes, with and without sound, into one that plays through', async () => {
+    const a = makeVideo('v-a.mp4', 2, '160x120', true);
+    const b = makeVideo('v-b.mp4', 1, '320x240', false);
+    const out = ok((await run('merge', 'tool', [a, b]))[0] as JobResult);
+    expect(basename(out)).toBe('v-a-merged.mp4');
+    const total = (await probeDuration(out)) ?? 0;
+    expect(total).toBeGreaterThan(2.6);
+    expect(total).toBeLessThan(3.6);
+    const banner = spawnSync(ffmpeg(), ['-hide_banner', '-i', out]).stderr.toString();
+    expect(banner).toMatch(/Video: h264.*160x120/); // the second clip was fitted into the first one's frame
+    expect(banner).toMatch(/Audio: aac/); // the silent clip got silence, so the sound runs through
+  }, 120_000);
+
+  it('joins audio files', async () => {
+    const a = makeAudio('a-a.mp3', 1);
+    const b = makeAudio('a-b.mp3', 2);
+    const out = ok((await run('merge', 'tool', [a, b]))[0] as JobResult);
+    expect(basename(out)).toBe('a-a-merged.mp3');
+    const total = (await probeDuration(out)) ?? 0;
+    expect(total).toBeGreaterThan(2.7);
+    expect(total).toBeLessThan(3.5);
+  }, 60_000);
+
+  it('refuses a file with nothing to merge', async () => {
+    const a = makeVideo('n-a.mp4', 1);
+    const wav = makeAudio('n-b.mp3', 1);
+    const pic = await makePng('n-c.png');
+    void wav;
+    void pic;
+    const r = (await run('merge', 'tool', [a, join(dir, 'n-b.mp3')]))[0] as JobResult;
+    expect(r.status).toBe('error');
+  }, 60_000);
+});
+
+describe('passwords', () => {
+  it('adds a password to a PDF and removes it again, and rejects a wrong one', async () => {
+    const src = await makePdf('secret.pdf', ['one', 'two', 'three']);
+    const locked = ok(
+      (await run('password', 'tool', [src], { mode: 'add', password: 'hunter2' }))[0] as JobResult,
+    );
+    expect(basename(locked)).toBe('secret-protected.pdf');
+    const bytes = readFileSync(locked);
+    await expect(PDFDocument.load(bytes)).rejects.toThrow(/encrypted/i);
+
+    const asked = (
+      await run('password', 'tool', [locked], { mode: 'remove', password: 'nope' })
+    )[0] as JobResult;
+    expect(asked.error?.code).toBe('E_WRONG_PASSWORD');
+
+    const open = ok(
+      (
+        await run('password', 'tool', [locked], { mode: 'remove', password: 'hunter2' })
+      )[0] as JobResult,
+    );
+    expect(basename(open)).toBe('secret-protected-unlocked.pdf');
+    expect((await PDFDocument.load(readFileSync(open))).getPageCount()).toBe(3);
+  }, 60_000);
+
+  it('does not protect an already protected PDF, or unlock one with no password', async () => {
+    const src = await makePdf('plain-pw.pdf', ['x']);
+    const r = (
+      await run('password', 'tool', [src], { mode: 'remove', password: 'a' })
+    )[0] as JobResult;
+    expect(r.status).toBe('error');
+    expect(r.error?.message).toMatch(/no password/);
+  });
+
+  it('adds an AES password to a ZIP, needs it to open, and removes it again', async () => {
+    const folder = join(dir, 'zp');
+    execFileSync('mkdir', ['-p', join(folder, 'inner')]);
+    writeFileSync(join(folder, 'a.txt'), 'alpha');
+    writeFileSync(join(folder, 'inner', 'b.txt'), 'beta');
+    const zip = ok(
+      (await run('zip', 'tool', [join(folder, 'a.txt'), join(folder, 'inner')]))[0] as JobResult,
+    );
+    const locked = ok(
+      (
+        await run('password', 'tool', [zip], { mode: 'add', password: 'p@ss word' })
+      )[0] as JobResult,
+    );
+    expect(basename(locked)).toBe('zp-protected.zip');
+    const sevenZip = sevenZipPath() as string;
+    const listing = execFileSync(sevenZip, ['l', '-slt', locked]).toString();
+    expect(listing).toMatch(/Encrypted = \+/);
+    expect(listing).toMatch(/Method = .*AES-256/);
+
+    const wrong = (
+      await run('password', 'tool', [locked], { mode: 'remove', password: 'bad' })
+    )[0] as JobResult;
+    expect(wrong.error?.code).toBe('E_WRONG_PASSWORD');
+
+    const open = ok(
+      (
+        await run('password', 'tool', [locked], { mode: 'remove', password: 'p@ss word' })
+      )[0] as JobResult,
+    );
+    expect(basename(open)).toBe('zp-protected-unlocked.zip');
+    expect(execFileSync(sevenZip, ['l', '-slt', open]).toString()).not.toMatch(/Encrypted = \+/);
+    expect(list(open)).toEqual(['a.txt', 'inner', 'inner/b.txt']);
+  }, 120_000);
+
+  function list(zip: string): string[] {
+    return execFileSync(sevenZipPath() as string, ['l', '-slt', zip])
+      .toString()
+      .split('\n')
+      .filter((l) => l.startsWith('Path = '))
+      .map((l) => l.slice(7).trim())
+      .slice(1)
+      .sort();
+  }
+});
+
+describe('delete pages', () => {
+  it('saves only the kept pages as a new PDF and leaves the original alone', async () => {
+    const src = await makePdf('five-del.pdf', ['p1', 'p2', 'p3', 'p4', 'p5']);
+    const out = ok((await run('delete-pages', 'tool', [src], { keep: '1-2,5' }))[0] as JobResult);
+    expect(basename(out)).toBe('five-del-edited.pdf');
+    expect((await PDFDocument.load(readFileSync(out))).getPageCount()).toBe(3);
+    const none = (await run('delete-pages', 'tool', [src], { keep: '1-5' }))[0] as JobResult;
+    expect(none.status).toBe('error');
+    const nothing = (await run('delete-pages', 'tool', [src], { keep: '' }))[0] as JobResult;
+    expect(nothing.status).toBe('error');
+  });
+});
+
+describe('upscale and background removal', () => {
+  it('enlarges many images at once and names each with its factor', async () => {
+    const a = await makePng('up-a.png', 40, 30);
+    const b = await makePng('up-b.png', 20, 10);
+    const results = await run('upscale', 'tool', [a, b], { factor: 3, sharpen: true });
+    const sizes = await Promise.all(results.map(async (r) => sharp(ok(r)).metadata()));
+    expect(sizes.map((m) => [m.width, m.height])).toEqual([
+      [120, 90],
+      [60, 30],
+    ]);
+    expect(results.map((r) => basename(ok(r)))).toEqual(['up-a-3x.png', 'up-b-3x.png']);
+  });
+
+  it('refuses a result that would be absurdly large', async () => {
+    const big = await makePng('up-big.png', 5000, 5000);
+    const r = (await run('upscale', 'tool', [big], { factor: 4 }))[0] as JobResult;
+    expect(r.status).toBe('error');
+  }, 60_000);
+
+  it('makes a plain background transparent and keeps the subject, for many images', async () => {
+    const make = async (name: string, bg: string) => {
+      const p = join(dir, name);
+      await sharp({ create: { width: 60, height: 60, channels: 3, background: bg } })
+        .composite([
+          {
+            input: await sharp({
+              create: { width: 20, height: 20, channels: 3, background: '#d02020' },
+            })
+              .png()
+              .toBuffer(),
+            left: 20,
+            top: 20,
+          },
+        ])
+        .png()
+        .toFile(p);
+      return p;
+    };
+    const white = await make('bg-white.png', '#ffffff');
+    const green = await make('bg-green.png', '#20a040');
+    const results = await run('remove-bg', 'tool', [white, green], { tolerance: 15, feather: 0 });
+    for (const r of results) {
+      expect(basename(ok(r))).toMatch(/-nobg\.png$/);
+      const { data, info } = await sharp(ok(r))
+        .ensureAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      const alphaAt = (x: number, y: number) => data[(y * info.width + x) * 4 + 3];
+      expect(alphaAt(2, 2)).toBe(0);
+      expect(alphaAt(30, 30)).toBe(255);
+    }
+  });
+
+  it('says so when there is no plain background', async () => {
+    const noisy = join(dir, 'noisy.png');
+    await sharp(randomBytes(60 * 60 * 3), { raw: { width: 60, height: 60, channels: 3 } })
+      .png()
+      .toFile(noisy);
+    const r = (await run('remove-bg', 'tool', [noisy], { tolerance: 3 }))[0] as JobResult;
+    expect(r.status).toBe('error');
+  });
 });

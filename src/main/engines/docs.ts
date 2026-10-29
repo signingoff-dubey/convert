@@ -4,6 +4,7 @@ import { basename, join } from 'node:path';
 import { extensionOf } from '../../shared/formats';
 import { JobError, type Engine, type Operation } from '../jobs/types';
 import { dynamicImport } from './esm';
+import { htmlToPdf, htmlToPdfAvailable } from './html-pdf';
 import { buildEpub, readEpub, splitChapters } from './epub';
 import { rtfToText } from './rtf';
 import { officeConvert } from './office';
@@ -45,7 +46,7 @@ export function mdToText(md: string): string {
 
 function page(title: string, body: string): string {
   return `<!doctype html>\n<html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
-<style>body{font-family:system-ui,sans-serif;max-width:46rem;margin:2rem auto;padding:0 1rem;line-height:1.6}pre{background:#f4f4f6;padding:.75rem;overflow:auto}</style>
+<style>body{font-family:system-ui,'Segoe UI',sans-serif;max-width:46rem;margin:2rem auto;padding:0 1rem;line-height:1.6}pre{background:#f4f4f6;padding:.75rem;overflow:auto;white-space:pre-wrap;word-break:break-word}code{background:#f4f4f6;padding:.1em .3em;border-radius:3px}pre code{background:none;padding:0}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:.3rem .6rem}img{max-width:100%}blockquote{border-left:3px solid #ccc;margin-left:0;padding-left:1rem;color:#555}@media print{body{max-width:none;margin:0}h1,h2,h3{break-after:avoid}pre,table,img{break-inside:avoid}}</style>
 </head><body>\n${body}\n</body></html>\n`;
 }
 
@@ -235,9 +236,21 @@ async function toMarkdown(input: string, ext: string, ctx: Ctx): Promise<string>
 }
 
 async function toPdf(input: string, ext: string, ctx: Ctx): Promise<void> {
+  // Word and RTF files keep their layout best through LibreOffice when it is installed; everything else
+  // (and those two, without it) is typeset from HTML by the built-in renderer, so no extra install is needed.
+  const useOffice = ctx.officePath !== null && (ext === 'docx' || ext === 'rtf');
+  if (!useOffice && htmlToPdfAvailable()) {
+    const { title, html } = await sourceHtml(input, ext, ctx);
+    const work = join(ctx.tempDir, 'src');
+    await mkdir(work, { recursive: true });
+    const page_ = join(work, 'page.html');
+    await writeFile(page_, ext === 'html' ? html : page(title, html), 'utf8');
+    await htmlToPdf(page_, ctx.tempPath, ctx.signal);
+    return;
+  }
   if (!ctx.officePath) throw new JobError('E_ENGINE_MISSING', 'LibreOffice');
   let source = input;
-  if (ext === 'md' || ext === 'epub') {
+  if (ext === 'md' || ext === 'epub' || ext === 'txt') {
     // LibreOffice cannot read these directly, so hand it an HTML rendition.
     const { title, html } = await sourceHtml(input, ext, ctx);
     const work = join(ctx.tempDir, 'src');
@@ -251,6 +264,7 @@ async function toPdf(input: string, ext: string, ctx: Ctx): Promise<void> {
 
 export function docsCanHandle(op: Operation, input: string): boolean {
   const ext = extensionOf(input);
+  if (op.kind === 'tool') return op.id === 'merge' && (ext === 'txt' || ext === 'md');
   return op.kind === 'convert' && DOC_EXTS.has(ext) && TARGETS.has(op.id) && ext !== op.id;
 }
 
@@ -259,6 +273,14 @@ export const docsEngine: Engine = {
   canHandle: docsCanHandle,
   async run(op, input, ctx) {
     const ext = extensionOf(input);
+    if (op.kind === 'tool') {
+      // Text and Markdown files are joined in the order given, each separated by a blank line.
+      const texts: string[] = [];
+      for (const file of ctx.allInputs.length > 0 ? ctx.allInputs : [input]) {
+        texts.push((await readFile(file, 'utf8')).replace(/^﻿/, '').replace(/\s+$/, ''));
+      }
+      return writeFile(ctx.tempPath, texts.join('\n\n') + '\n', 'utf8');
+    }
     switch (op.id) {
       case 'pdf':
         return toPdf(input, ext, ctx);

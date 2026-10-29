@@ -18,9 +18,9 @@ The build plan says to stop after each phase and wait for `continue`. All phases
 
 `docs/01` section 4.2 lists Crop, Redact, Annotate, Add background, Edit and Edit metadata as "do not build in v1". The owner supplied screenshots of the reference product and asked for all features shown, so they were built. Rotate, Flip, Resize and Strip metadata live inside Edit, Compress and Metadata, as in the reference. Collage and combined multi-image PDF were added from the same screenshots.
 
-## DEVIATION-4: Wheels hold up to 8 wedges
+## DEVIATION-4: Wheels hold up to 8 wedges (10 for Tools)
 
-`docs/01` says at most 7. The PDF wheel has 8 targets (DOCX, PPTX, XLSX, JPG, PNG, EPUB, TXT, MD) and audio and video have 8 once their own format is not removed. Hit-testing and drawing work for any count; a test asserts no real source file produces more than 8.
+`docs/01` says at most 7. The Tools wheel holds up to 10, because one image now offers Compress, Redact, Metadata, Edit, Crop, Add BG, Annotate, Upscale, Remove BG and Copy text. The PDF wheel has 8 targets (DOCX, PPTX, XLSX, JPG, PNG, EPUB, TXT, MD) and audio and video have 8 once their own format is not removed. Hit-testing and drawing work for any count; a test asserts no real source file produces more than 8.
 
 ## DEVIATION-5: Own settings store instead of electron-store
 
@@ -89,3 +89,21 @@ The wheel was redrawn to match the reference photo: a full circle with a rim, ro
 - LibreOffice conversions (no LibreOffice was available). Their argument builder is unit-tested.
 - Face detection accuracy. The model loads and the code path runs, but no photo with faces was available offline.
 - Mixed-DPI placement: `physicalToDip` is a tested model of Electron's `screenToDipPoint`, not the call itself.
+
+## DEVIATION-15: Multi-file tools, text, merging and passwords
+
+Added at the owner's request, in the same spirit as DEVIATION-3.
+
+- **Zip** (an action) takes any mix of files and folders. **Merge** joins PDFs, videos, audio files, and text or Markdown files (two or more, in the order chosen in the window; a result is named after the first one with `-merged`). Videos are fitted into the first video's frame size (padded, never stretched) at 30 fps; a clip with no sound gets silence of its own length so the sound stays in sync.
+- **Upscale** is high-quality resampling (Lanczos plus an optional light sharpen), 2x to 4x, for many images at once. It is not AI and invents no detail; the window says so. A result larger than 16,000 px a side or 200 megapixels is refused.
+- **Remove background** works on plain backgrounds only: it reads the colour at the picture's edge and clears what is close to it and connected to the edge. A person or object on a busy background will not come out cleanly. A real cut-out model was not used because the available ones are either not licensed for redistribution or are hundreds of megabytes of runtime. The window and the Features page say this. The same code runs the preview and the saved file.
+- **Delete pages** shows every page as a thumbnail, all kept, and saves the kept ones as `-edited.pdf`. **Extract frames** and **Unzip** write into a folder (DEVIATION-13 explains why those two are folders).
+- **TXT from anything**: pictures are read with Tesseract (English data only is bundled). Several recognizers run side by side on a pool of up to 4, and a tall page is cut only at fully blank rows so no line is split: on a four-core test machine a 40-line page took 4.7 s with one recognizer and 2.3 s with three. PDFs with no text layer fall back to the same OCR page by page. Spreadsheets become tab-separated text. Audio and video have no TXT target: speech recognition would need a model that is not bundled.
+- **Copy text** (a tool) puts the text on the clipboard instead of writing a file; with several files each is headed by its name. The toast reports the number of characters.
+- **Markdown, text, HTML and EPUB to PDF** no longer need LibreOffice: they are typeset by Chromium's print-to-PDF in a hidden window with scripts off and all network blocked. Word and RTF still use LibreOffice when it is installed and the built-in renderer otherwise.
+- **Passwords** (a tool, PDF and ZIP): adds AES-256 (PDF: user and owner password are the same; ZIP: `-mem=AES256`), or removes one when the user types it. Removal writes a new file; the original is untouched. A wrong password is reported as such. The ZIP password is on the command line of a local 7-Zip child process for the length of the job; the PDF password never leaves the process. Removing a PDF password copies the pages into a fresh document, so outlines and form fields are not carried over (re-saving the opened document would keep it encrypted).
+- **Mixed selections**: the Convert wheel offers every target any selected file can use; each file already in the chosen format, or that cannot go there, is skipped with a message.
+
+## DEVIATION-16: PDFs are read in a hidden Chromium window
+
+`@napi-rs/canvas` (which pdf.js uses in Node to draw pages) crashes the Electron 45 main process the moment it is loaded (`SIGTRAP`, reproduced with a bare `require` under both Electron and `ELECTRON_RUN_AS_NODE`). Everything that reads a PDF with pdf.js (page pictures, page thumbnails, text for TXT, MD, EPUB and XLSX, OCR of scans) therefore runs in a hidden, sandboxed `pdfrender` page that Chromium draws on, with the same document interface the engines use in Node (`setPdfBackend`). `@napi-rs/canvas` is now a dev dependency, used only by the Node fallback that the tests exercise. Verified end to end in the real app under Xvfb (`scripts/smoke.cjs`). JPEG 2000 images and CJK fonts that need pdf.js data files are not supported in that window.

@@ -13,9 +13,11 @@ import {
 } from '../jobs/types';
 import { dynamicImport } from './esm';
 import { buildEpub } from './epub';
+import { ocrImage, userCacheDir } from './ocr';
+import sharp from 'sharp';
 
 const CONVERT = new Set(['png', 'jpg', 'txt', 'md', 'epub', 'xlsx']);
-const TOOLS = new Set(['compress', 'split', 'merge']);
+const TOOLS = new Set(['compress', 'split', 'merge', 'delete-pages']);
 const DPI = 300;
 
 /**
@@ -141,27 +143,53 @@ export function paragraphsFromItems(items: readonly TextItem[]): string[] {
   return paragraphs;
 }
 
-interface PdfJs {
+/** One page of a PDF opened for reading. Implemented by pdf.js, in a hidden Chromium window or in plain Node. */
+export interface PdfPage {
+  /** Page size in PDF points. */
+  size(): { width: number; height: number };
+  /** The page drawn at `scale` (1 = 72 dpi): PNG, or JPEG on white. */
+  image(scale: number, format: 'png' | 'jpg'): Promise<Buffer>;
+  text(): Promise<TextItem[]>;
+  cleanup(): void;
+}
+export interface PdfDocument {
+  numPages: number;
+  getPage(n: number): Promise<PdfPage>;
+  release(): Promise<void>;
+}
+
+let backend: ((path: string) => Promise<PdfDocument>) | null = null;
+
+/**
+ * Inside Electron, pdf.js runs in a hidden Chromium window, because the native canvas module that pdf.js
+ * would use in Node cannot be loaded there. Tests and plain Node use the fallback below.
+ */
+export function setPdfBackend(open: ((path: string) => Promise<PdfDocument>) | null): void {
+  backend = open;
+}
+
+function openPdf(path: string): Promise<PdfDocument> {
+  return backend ? backend(path) : openWithPdfJs(path);
+}
+
+interface NodePdfJs {
   getDocument(o: Record<string, unknown>): {
-    promise: Promise<PdfDocument>;
+    promise: Promise<{
+      numPages: number;
+      getPage(n: number): Promise<{
+        getViewport(o: { scale: number }): { width: number; height: number };
+        render(o: Record<string, unknown>): { promise: Promise<void> };
+        getTextContent(): Promise<{ items: TextItem[] }>;
+        cleanup(): void;
+      }>;
+    }>;
     destroy(): Promise<void>;
   };
 }
-interface PdfDocument {
-  numPages: number;
-  getPage(n: number): Promise<PdfPage>;
-  /** Frees the document; present on the loading task, not on the document proxy. */
-  release(): Promise<void>;
-}
-interface PdfPage {
-  getViewport(o: { scale: number }): { width: number; height: number };
-  render(o: Record<string, unknown>): { promise: Promise<void> };
-  getTextContent(): Promise<{ items: TextItem[] }>;
-  cleanup(): void;
-}
 
 async function openWithPdfJs(path: string): Promise<PdfDocument> {
-  const pdfjs = await dynamicImport<PdfJs>('pdfjs-dist/legacy/build/pdf.mjs');
+  const pdfjs = await dynamicImport<NodePdfJs>('pdfjs-dist/legacy/build/pdf.mjs');
+  const { createCanvas } = nodeRequire('@napi-rs/canvas') as typeof import('@napi-rs/canvas');
   const root = dirname(nodeRequire.resolve('pdfjs-dist/package.json'));
   const task = pdfjs.getDocument({
     data: new Uint8Array(await readFile(path)),
@@ -172,7 +200,29 @@ async function openWithPdfJs(path: string): Promise<PdfDocument> {
   });
   try {
     const doc = await task.promise;
-    return Object.assign(doc, { release: () => task.destroy() });
+    return {
+      numPages: doc.numPages,
+      release: () => task.destroy(),
+      async getPage(n) {
+        const page = await doc.getPage(n);
+        return {
+          size: () => page.getViewport({ scale: 1 }),
+          async image(scale, format) {
+            const viewport = page.getViewport({ scale });
+            const canvas = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
+            const context = canvas.getContext('2d');
+            context.fillStyle = '#ffffff';
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            await page.render({ canvasContext: context, canvas, viewport }).promise;
+            return format === 'png'
+              ? canvas.toBuffer('image/png')
+              : canvas.toBuffer('image/jpeg', 90);
+          },
+          text: async () => (await page.getTextContent()).items,
+          cleanup: () => page.cleanup(),
+        };
+      },
+    };
   } catch (error) {
     const name = (error as { name?: string }).name ?? '';
     if (name === 'PasswordException') throw new JobError('E_ENCRYPTED_PDF');
@@ -185,23 +235,13 @@ export async function renderPages(
   ext: 'png' | 'jpg',
   ctx: RunContext,
 ): Promise<void> {
-  const { createCanvas } = nodeRequire('@napi-rs/canvas') as typeof import('@napi-rs/canvas');
-  const doc = await openWithPdfJs(input);
+  const doc = await openPdf(input);
   try {
     const base = basename(input).replace(/\.[^.]+$/, '');
     for (let n = 1; n <= doc.numPages; n++) {
       if (ctx.signal.aborted) throw new JobError('E_CANCELLED');
       const page = await doc.getPage(n);
-      const viewport = page.getViewport({ scale: DPI / 72 });
-      const canvas = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
-      const context = canvas.getContext('2d');
-      if (ext === 'jpg') {
-        context.fillStyle = '#ffffff';
-        context.fillRect(0, 0, canvas.width, canvas.height);
-      }
-      await page.render({ canvasContext: context, canvas, viewport }).promise;
-      const buffer =
-        ext === 'png' ? canvas.toBuffer('image/png') : canvas.toBuffer('image/jpeg', 90);
+      const buffer = await page.image(DPI / 72, ext);
       await writeFile(join(ctx.outDir, pageFileName(base, n, ext, doc.numPages)), buffer);
       page.cleanup();
       ctx.onProgress(Math.round((n / doc.numPages) * 100));
@@ -211,37 +251,69 @@ export async function renderPages(
   }
 }
 
+/** Pictures of pages for the Delete pages window, `width` pixels wide. */
+export async function pageThumbnails(
+  input: string,
+  from: number,
+  count: number,
+  width: number,
+): Promise<{ pages: number; thumbs: Buffer[] }> {
+  const doc = await openPdf(input);
+  try {
+    const thumbs: Buffer[] = [];
+    for (let n = from; n < from + count && n <= doc.numPages; n++) {
+      const page = await doc.getPage(n);
+      thumbs.push(await page.image(width / page.size().width, 'png'));
+      page.cleanup();
+    }
+    return { pages: doc.numPages, thumbs };
+  } finally {
+    await doc.release();
+  }
+}
+
 async function extractText(input: string, markdown: boolean, ctx: RunContext): Promise<void> {
-  const doc = await openWithPdfJs(input);
+  const doc = await openPdf(input);
   try {
     const parts: string[] = [];
+    const scanned: number[] = [];
     for (let n = 1; n <= doc.numPages; n++) {
       if (ctx.signal.aborted) throw new JobError('E_CANCELLED');
       const page = await doc.getPage(n);
-      const content = await page.getTextContent();
-      const text = content.items
+      const text = (await page.text())
         .map((i) => (i.str ?? '') + (i.hasEOL ? '\n' : ''))
         .join('')
         .trim();
-      parts.push(markdown ? `## Page ${n}\n\n${text}` : text);
+      // A page with no text layer is a picture of text (a scan): read it with OCR below.
+      if (text === '') scanned.push(n);
+      parts.push(text);
       page.cleanup();
-      ctx.onProgress(Math.round((n / doc.numPages) * 100));
+      ctx.onProgress(Math.round((n / doc.numPages) * (scanned.length > 0 ? 40 : 100)));
     }
-    await writeFile(ctx.tempPath, parts.join(markdown ? '\n\n---\n\n' : '\n\n') + '\n', 'utf8');
+    for (const [i, n] of scanned.entries()) {
+      if (ctx.signal.aborted) throw new JobError('E_CANCELLED');
+      const page = await doc.getPage(n);
+      const png = await page.image(2.5, 'png');
+      page.cleanup();
+      parts[n - 1] = await ocrImage(sharp(png), { cacheDir: userCacheDir(), signal: ctx.signal });
+      ctx.onProgress(40 + Math.round(((i + 1) / scanned.length) * 60));
+    }
+    const pages = parts.map((text, i) => (markdown ? `## Page ${i + 1}\n\n${text}` : text));
+    await writeFile(ctx.tempPath, pages.join(markdown ? '\n\n---\n\n' : '\n\n') + '\n', 'utf8');
   } finally {
     await doc.release();
   }
 }
 
 async function toEpub(input: string, ctx: RunContext): Promise<void> {
-  const doc = await openWithPdfJs(input);
+  const doc = await openPdf(input);
   try {
     const title = basename(input).replace(/\.[^.]+$/, '');
     const html: string[] = [];
     for (let n = 1; n <= doc.numPages; n++) {
       if (ctx.signal.aborted) throw new JobError('E_CANCELLED');
       const page = await doc.getPage(n);
-      const paras = paragraphsFromItems((await page.getTextContent()).items);
+      const paras = paragraphsFromItems(await page.text());
       html.push(paras.map((p) => `<p>${escapeXml(p)}</p>`).join('\n'));
       page.cleanup();
       ctx.onProgress(Math.round((n / doc.numPages) * 100));
@@ -268,14 +340,14 @@ const escapeXml = (s: string): string =>
 /** Best effort: text positions become rows and cells, one worksheet per page. */
 async function toXlsx(input: string, ctx: RunContext): Promise<void> {
   const ExcelJS = nodeRequire('exceljs') as typeof import('exceljs');
-  const doc = await openWithPdfJs(input);
+  const doc = await openPdf(input);
   try {
     const wb = new ExcelJS.Workbook();
     let any = false;
     for (let n = 1; n <= doc.numPages; n++) {
       if (ctx.signal.aborted) throw new JobError('E_CANCELLED');
       const page = await doc.getPage(n);
-      const rows = rowsFromTextItems((await page.getTextContent()).items);
+      const rows = rowsFromTextItems(await page.text());
       if (rows.length > 0) any = true;
       wb.addWorksheet(`Page ${n}`).addRows(rows);
       page.cleanup();
@@ -306,6 +378,20 @@ async function split(input: string, op: Operation, ctx: RunContext): Promise<voi
     await writeFile(join(ctx.outDir, `${base}-${rangeLabel(group)}.pdf`), await out.save());
     ctx.onProgress(Math.round(((i + 1) / groups.length) * 100));
   }
+}
+
+async function deletePages(input: string, op: Operation, ctx: RunContext): Promise<void> {
+  const src = await loadPdfLib(input);
+  const keep = [
+    ...new Set(parsePageRanges(String(op.params?.keep ?? ''), src.getPageCount()).flat()),
+  ].sort((a, b) => a - b);
+  if (keep.length === src.getPageCount())
+    throw new JobError('E_UNSUPPORTED', 'every page is kept, so there is nothing to delete');
+  const out = await PDFDocument.create();
+  for (const page of await out.copyPages(src, keep)) out.addPage(page);
+  out.setTitle(src.getTitle() ?? '');
+  out.setAuthor(src.getAuthor() ?? '');
+  await writeFile(ctx.tempPath, await out.save());
 }
 
 async function merge(ctx: RunContext): Promise<void> {
@@ -343,6 +429,7 @@ export const pdfEngine: Engine = {
         return await extractText(input, op.id === 'md', ctx);
       }
       if (op.id === 'split') return await split(input, op, ctx);
+      if (op.id === 'delete-pages') return await deletePages(input, op, ctx);
       if (op.id === 'merge') return await merge(ctx);
       return await compress(input, ctx);
     } catch (error) {

@@ -3,7 +3,7 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'electron-vite';
 
-const pages = ['overlay', 'settings', 'toast', 'toolwin', 'float', 'loader'] as const;
+const pages = ['overlay', 'settings', 'toast', 'toolwin', 'float', 'loader', 'pdfrender'] as const;
 
 export default defineConfig({
   main: {

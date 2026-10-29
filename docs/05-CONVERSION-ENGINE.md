@@ -31,7 +31,7 @@ Check each license in Phase 0 (`AGENTS.md`: no AGPL or GPL linked in).
 | HEIC decode | `heic-convert` (WASM) | heic input only, then hand off to sharp |
 | Audio / video | bundled `ffmpeg` executable (LGPL build) | all audio/video targets, extract audio, trim, compress |
 | PDF create | `pdf-lib` | images → PDF |
-| PDF render | `pdfjs-dist` + `@napi-rs/canvas` | PDF → PNG/JPG at 300 DPI, text extraction → TXT/MD |
+| PDF render | `pdfjs-dist` in a hidden Chromium window (Node fallback: `@napi-rs/canvas`, see DECISIONS DEVIATION-16) | PDF → PNG/JPG at 300 DPI, text extraction → TXT/MD |
 | PDF edit | `pdf-lib` | split, merge, basic compress (object streams; no image recompress in v1) |
 | Documents | `mammoth` (docx → html/text), `turndown` (html → md), `marked` (md → html), `docx` (to write DOCX) | docx, md, txt, html |
 | Spreadsheets | `exceljs` + `papaparse` | xlsx ↔ csv/tsv |

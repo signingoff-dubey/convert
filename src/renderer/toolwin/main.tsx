@@ -9,12 +9,17 @@ import { Annotate } from './tools/Annotate';
 import { Collage } from './tools/Collage';
 import { Compress } from './tools/Compress';
 import { Crop } from './tools/Crop';
+import { DeletePages } from './tools/DeletePages';
 import { Edit } from './tools/Edit';
+import { Frames } from './tools/Frames';
 import { Merge } from './tools/Merge';
 import { Metadata } from './tools/Metadata';
+import { Password } from './tools/Password';
 import { Redact } from './tools/Redact';
+import { RemoveBg } from './tools/RemoveBg';
 import { Split } from './tools/Split';
 import { Trim } from './tools/Trim';
+import { Upscale } from './tools/Upscale';
 
 const TOOLS: Record<ToolWindowName, (p: { paths: string[] }) => React.ReactNode> = {
   trim: Trim,
@@ -28,6 +33,11 @@ const TOOLS: Record<ToolWindowName, (p: { paths: string[] }) => React.ReactNode>
   'add-bg': AddBg,
   annotate: Annotate,
   collage: Collage,
+  frames: Frames,
+  'delete-pages': DeletePages,
+  upscale: Upscale,
+  'remove-bg': RemoveBg,
+  password: Password,
 };
 
 function App() {

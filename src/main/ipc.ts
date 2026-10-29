@@ -20,6 +20,8 @@ import {
 import { validateDropped, type DispatchDeps } from './dispatch';
 import { probeDuration } from './engines/av';
 import { detectOffice } from './engines/binaries';
+import { pageThumbnails } from './engines/pdf';
+import { isEncrypted } from './engines/protect';
 import { detectTextBoxes, readFaceModel } from './engines/detect';
 import { engineStatus } from './engines/status';
 import { readMetadata } from './engines/meta';
@@ -36,6 +38,7 @@ import type { SettingsService } from './settings/store';
 import type { TriggerEngine } from './trigger/hooks';
 import type { FloatShelf } from './windows/float-shelf';
 import type { WindowRegistry } from './windows/registry';
+import type { PdfHost } from './services/pdf-host';
 import type { ToolWindowManager } from './windows/toolwin';
 import type { WheelId } from '../shared/formats';
 
@@ -47,6 +50,7 @@ export interface IpcContext {
   trigger: TriggerEngine;
   toasts: ToastManager;
   toolwin: ToolWindowManager;
+  pdfHost: PdfHost;
   float: FloatShelf;
   state: AppState;
   registry: WindowRegistry;
@@ -176,6 +180,7 @@ export function registerIpc(ctx: IpcContext): void {
   const allowedFor = (event: IpcMainInvokeEvent, file: string): boolean =>
     ctx.toolwin.isAllowed(event.sender.id, file);
 
+  handle('pdfrender:res', (message) => ctx.pdfHost.settle(message));
   handle('toolwin:close', (_p, event) => ctx.toolwin.closeFor(event.sender.id));
   handle('toolwin:probe', async ({ path: file }, event) => {
     if (!allowedFor(event, file)) throw new Error('not allowed');
@@ -183,9 +188,20 @@ export function registerIpc(ctx: IpcContext): void {
       const doc = await PDFDocument.load(readFileSync(file), { ignoreEncryption: true }).catch(
         () => null,
       );
-      return { durationSec: null, pages: doc?.getPageCount() ?? null };
+      return {
+        durationSec: null,
+        pages: doc?.getPageCount() ?? null,
+        encrypted: doc ? doc.isEncrypted : null,
+      };
     }
-    return { durationSec: await probeDuration(file), pages: null };
+    if (categoryOf(file) === 'archive')
+      return { durationSec: null, pages: null, encrypted: await isEncrypted(file) };
+    return { durationSec: await probeDuration(file), pages: null, encrypted: null };
+  });
+  handle('pdf:thumbs', async ({ path: file, from, count, width }, event) => {
+    if (!allowedFor(event, file)) throw new Error('not allowed');
+    const r = await pageThumbnails(file, from, count, width);
+    return { pages: r.pages, thumbs: r.thumbs.map((b) => new Uint8Array(b)) };
   });
   handle('dialog:pick-image', async (_p, event) => {
     const res = await dialog.showOpenDialog({

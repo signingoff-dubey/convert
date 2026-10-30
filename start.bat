@@ -3,8 +3,12 @@ setlocal
 cd /d "%~dp0"
 title Convert
 if not exist "node_modules\electron\dist\electron.exe" goto :needsetup
-if not exist "out\main\index.js" (
-  echo  Building Convert for the first run...
+node scripts\check-env.cjs --quiet
+set /a "NEED_PKG=%ERRORLEVEL% & 1"
+set /a "NEED_BUILD=%ERRORLEVEL% & 4"
+if not "%NEED_PKG%"=="0" goto :needsetup
+if not "%NEED_BUILD%"=="0" (
+  echo  Building Convert, because the code changed since the last build...
   call npm run build
   if errorlevel 1 goto :fail
 )

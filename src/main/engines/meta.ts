@@ -134,6 +134,19 @@ export interface MetadataView {
   GPSLongitude?: number;
   ImageWidth?: number;
   ImageHeight?: number;
+  /** Read-only details shown beside the editable ones. */
+  ExposureTime?: number;
+  FNumber?: number;
+  ISO?: number;
+  FocalLength?: string;
+  Flash?: string;
+  Orientation?: string;
+  ColorSpace?: string;
+  FileType?: string;
+  FileSize?: string;
+  CreateDate?: string;
+  ModifyDate?: string;
+  GPSAltitude?: number;
 }
 
 /** exiftool reports magnitude plus a hemisphere letter; the editor works with signed degrees. */
@@ -144,6 +157,15 @@ function signed(
 ): number | undefined {
   if (value === undefined) return undefined;
   return ref?.trim().toUpperCase().startsWith(negative) ? -Math.abs(value) : value;
+}
+
+/** exiftool gives the shutter time as a number or as text such as "1/250". */
+function seconds(value: unknown): number | undefined {
+  if (typeof value === 'number') return value;
+  if (typeof value !== 'string') return undefined;
+  const m = /^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/.exec(value.trim());
+  const n = m ? Number(m[1]) / Number(m[2]) : Number(value);
+  return Number.isFinite(n) && n > 0 ? n : undefined;
 }
 
 /** Reads the fields the Metadata window shows. */
@@ -170,5 +192,17 @@ export async function readMetadata(path: string): Promise<MetadataView> {
     GPSLongitude: signed(num('GPSLongitude'), str('GPSLongitudeRef'), 'W'),
     ImageWidth: num('ImageWidth'),
     ImageHeight: num('ImageHeight'),
+    ExposureTime: seconds(raw['ExposureTime']),
+    FNumber: num('FNumber'),
+    ISO: num('ISO'),
+    FocalLength: str('FocalLength'),
+    Flash: str('Flash'),
+    Orientation: str('Orientation'),
+    ColorSpace: str('ColorSpace'),
+    FileType: str('FileType'),
+    FileSize: str('FileSize'),
+    CreateDate: str('CreateDate'),
+    ModifyDate: str('FileModifyDate') ?? str('ModifyDate'),
+    GPSAltitude: num('GPSAltitude'),
   };
 }

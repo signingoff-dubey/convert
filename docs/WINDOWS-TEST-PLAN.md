@@ -103,3 +103,15 @@ After every row that converts something, confirm the original still exists and i
 | 48 | Drag several files and a folder, **Shift+A**, Zip | One ZIP beside the first item. |
 | 49 | Drag a video, Tools, Extract frames | A `<name> frames` folder of pictures beside the video. |
 | 50 | Convert a PDF to PNG and open Delete pages on any PDF | The hidden PDF reader works on Windows (DEVIATION-16). |
+
+## 7. Share, background running, metadata
+
+| # | Do this | Expect |
+|---|---|---|
+| 51 | Drag two files, **Shift+S**, drop on Telegram or WhatsApp with the desktop app installed | The app opens; Ctrl+V pastes both files. The toast says so. |
+| 52 | Uninstall or rename that app, open web.whatsapp.com in Chrome, repeat | That Chrome window comes to the front (not a new tab); Ctrl+V pastes. |
+| 53 | Close every browser, repeat | The site opens in the browser set in Settings, General. |
+| 54 | Drag a folder only, **Shift+S** | Greyed out with a hint. |
+| 55 | Close the settings window | A toast says Convert is still running in the tray; Shift+C still works. Turn "Keep running in the background" off: closing quits. |
+| 56 | Drag a camera photo, **Shift+T**, Metadata | Camera, lens, exposure, ISO, size, dates and location appear next to the thumbnail. |
+

@@ -14,12 +14,17 @@ export const Settings = z.object({
     startWithWindows: z.boolean().default(true),
     limitToExplorerAndDesktop: z.boolean().default(true),
     paused: z.boolean().default(false),
+    /** Keep Convert running in the tray when its windows are closed, so the wheel keeps working. */
+    runInBackground: z.boolean().default(true),
+    /** Browser used for the web version of an app when no desktop app is installed. */
+    shareBrowser: z.enum(['default', 'chrome', 'edge', 'firefox', 'brave']).default('default'),
     allowedWindowClasses: z.array(z.string()).default(['CabinetWClass', 'Progman', 'WorkerW']),
   }),
   triggers: z.object({
     convert: Combo.default({ modifiers: ['shift'], code: 'KeyC' }),
     tools: Combo.default({ modifiers: ['shift'], code: 'KeyT' }),
     actions: Combo.default({ modifiers: ['shift'], code: 'KeyA' }),
+    share: Combo.default({ modifiers: ['shift'], code: 'KeyS' }),
   }),
   appearance: z.object({
     theme: z.enum(['system', 'graphite', 'paper', 'midnight']).default('system'),

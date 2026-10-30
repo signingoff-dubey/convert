@@ -1,4 +1,4 @@
-import { Section, SettingRow, Switch, Callout } from '../../components/ui';
+import { Callout, SegmentedControl, Section, SettingRow, Switch } from '../../components/ui';
 import { useSettings } from '../../shared/store';
 import { usePatch } from '../SavedContext';
 
@@ -17,6 +17,33 @@ export function General() {
             label="Start with Windows"
             checked={s.general.startWithWindows}
             onChange={(v) => void save({ general: { startWithWindows: v } })}
+          />
+        </SettingRow>
+        <SettingRow
+          label="Keep running in the background"
+          description="Closing this window leaves Convert in the tray, so the shortcuts and the wheel keep working. Turn off to quit when the window closes."
+        >
+          <Switch
+            label="Keep running in the background"
+            checked={s.general.runInBackground}
+            onChange={(v) => void save({ general: { runInBackground: v } })}
+          />
+        </SettingRow>
+        <SettingRow
+          label="Browser for sharing"
+          description="Share opens the app when it is installed. Otherwise it brings forward a browser window that already has the site open, or opens the site in this browser. Pick the one you are signed in to."
+        >
+          <SegmentedControl
+            label="Browser for sharing"
+            value={s.general.shareBrowser}
+            options={[
+              { value: 'default', label: 'Default' },
+              { value: 'chrome', label: 'Chrome' },
+              { value: 'edge', label: 'Edge' },
+              { value: 'firefox', label: 'Firefox' },
+              { value: 'brave', label: 'Brave' },
+            ]}
+            onChange={(v) => void save({ general: { shareBrowser: v } })}
           />
         </SettingRow>
         <SettingRow

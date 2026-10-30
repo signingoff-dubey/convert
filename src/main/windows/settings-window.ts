@@ -6,6 +6,12 @@ import type { WindowRegistry } from './registry';
 /** One instance, created on demand and destroyed on close to save RAM (docs/03 section 1). */
 export class SettingsWindow {
   private win: BrowserWindow | null = null;
+  private closedListeners: (() => void)[] = [];
+
+  /** Called after the settings window has been closed. */
+  onClosed(listener: () => void): void {
+    this.closedListeners.push(listener);
+  }
 
   constructor(
     private readonly registry: WindowRegistry,
@@ -40,7 +46,10 @@ export class SettingsWindow {
     this.win = win;
     this.registry.register(win, 'settings');
     win.once('ready-to-show', () => win.show());
-    win.on('closed', () => (this.win = null));
+    win.on('closed', () => {
+      this.win = null;
+      for (const l of this.closedListeners) l();
+    });
     await loadPage(win, 'settings');
   }
 

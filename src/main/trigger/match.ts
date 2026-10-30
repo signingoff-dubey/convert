@@ -8,7 +8,7 @@ export interface Modifiers {
   alt: boolean;
 }
 
-const WHEELS: WheelId[] = ['convert', 'tools', 'actions'];
+const WHEELS: WheelId[] = ['convert', 'tools', 'actions', 'share'];
 
 /** Wheels whose main key is this keycode, regardless of modifiers. */
 export function wheelsForKeycode(triggers: Record<WheelId, Combo>, keycode: number): WheelId[] {

@@ -1,6 +1,12 @@
 import { RotateCcw } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { ACTIONS, CONVERT_TARGETS, TOOLS, type Category } from '../../../shared/formats';
+import {
+  ACTIONS,
+  CONVERT_TARGETS,
+  SHARE_TARGETS,
+  TOOLS,
+  type Category,
+} from '../../../shared/formats';
 import { applyWheelPrefsWithFlags, wheelKey } from '../../../shared/wheels';
 import { Button, KeyCap, SortableList, Switch } from '../../components/ui';
 import { WheelPreview } from '../../components/WheelPreview';
@@ -21,14 +27,14 @@ function WheelColumn({
   entries,
 }: {
   title: string;
-  wheel: 'convert' | 'tools' | 'actions';
+  wheel: 'convert' | 'tools' | 'actions' | 'share';
   category: Category;
   entries: readonly Entry[];
 }) {
   const s = useSettings((x) => x.settings);
   const save = usePatch();
   if (!s) return null;
-  const key = wheelKey(wheel, wheel === 'actions' ? null : category);
+  const key = wheelKey(wheel, wheel === 'actions' || wheel === 'share' ? null : category);
   const order = s.wheels.order[key];
   const disabled = s.wheels.disabled[key];
   const rows = applyWheelPrefsWithFlags(entries, order, disabled);
@@ -111,6 +117,10 @@ export function Wheels() {
     [category],
   );
   const actions = useMemo<Entry[]>(() => ACTIONS.map((a) => ({ id: a.id, label: a.label })), []);
+  const share = useMemo<Entry[]>(
+    () => SHARE_TARGETS.map((a) => ({ id: a.id, label: a.label })),
+    [],
+  );
   return (
     <>
       <div role="tablist" aria-label="File type" className="mb-4 flex flex-wrap gap-1.5">
@@ -144,6 +154,13 @@ export function Wheels() {
       </p>
       <div className="max-w-sm">
         <WheelColumn title="File actions" wheel="actions" category={category} entries={actions} />
+      </div>
+      <h2 className="mb-3 mt-8 text-xl font-semibold">Share to apps</h2>
+      <p className="mb-3 text-sm text-muted">
+        Copies the files and opens the app, so you can paste them into a chat with Ctrl+V.
+      </p>
+      <div className="max-w-sm">
+        <WheelColumn title="Share" wheel="share" category={category} entries={share} />
       </div>
     </>
   );

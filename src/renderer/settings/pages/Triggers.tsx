@@ -7,7 +7,7 @@ import { useSettings } from '../../shared/store';
 import { ComboRecorder } from '../ComboRecorder';
 import { usePatch } from '../SavedContext';
 
-const WHEELS: WheelId[] = ['convert', 'tools', 'actions'];
+const WHEELS: WheelId[] = ['convert', 'tools', 'actions', 'share'];
 
 export function Triggers() {
   const s = useSettings((x) => x.settings);

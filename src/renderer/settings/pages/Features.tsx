@@ -1,6 +1,6 @@
 import { ArrowUpRight } from 'lucide-react';
 import { useState } from 'react';
-import { ACTIONS, CONVERT_TARGETS, TOOLS } from '../../../shared/formats';
+import { ACTIONS, SHARE_TARGETS, CONVERT_TARGETS, TOOLS } from '../../../shared/formats';
 import type { Category } from '../../../shared/formats';
 import { WEDGE_ICONS } from '../../components/icons';
 import { KeyCap } from '../../components/ui';
@@ -22,7 +22,7 @@ export function Features() {
   if (!s) return null;
   const info = CATEGORIES.find((c) => c.id === category) ?? CATEGORIES[0];
   const tools = TOOLS[category] ?? [];
-  const cap = (w: 'convert' | 'tools' | 'actions') => (
+  const cap = (w: 'convert' | 'tools' | 'actions' | 'share') => (
     <span className="inline-flex items-center gap-1">
       {s.triggers[w].modifiers.map((m) => (
         <KeyCap key={m}>{MODIFIER_LABEL[m]}</KeyCap>
@@ -159,6 +159,28 @@ export function Features() {
         </div>
         <p className="mt-2 text-xs text-muted">
           Works with folders, mixed selections, and files that have no conversion tools.
+        </p>
+      </section>
+
+      <section className="mb-8">
+        <h2 className="mb-1 text-2xl font-semibold">Share to apps</h2>
+        <p className="mb-3 text-sm text-muted">
+          Drag files, then tap {cap('share')}. Convert copies them and opens the app; paste with
+          Ctrl+V.
+        </p>
+        <div className="grid grid-cols-4 gap-3">
+          {SHARE_TARGETS.map((a) => {
+            const Icon = WEDGE_ICONS[a.id];
+            return (
+              <article key={a.id} className="rounded-2xl border border-line bg-surface p-4">
+                {Icon && <Icon size={20} className="mb-2 text-muted" />}
+                <h3 className="font-semibold">{a.label}</h3>
+              </article>
+            );
+          })}
+        </div>
+        <p className="mt-2 text-xs text-muted">
+          Uses the desktop app when it is installed and the website when it is not.
         </p>
       </section>
 

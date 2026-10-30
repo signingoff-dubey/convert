@@ -19,12 +19,43 @@ export function toExifDate(value: string): string {
   return m ? `${m[1]}:${m[2]}:${m[3]} ${m[4]}:${m[5]}:${m[6]}` : value;
 }
 
+const DETAILS: [string, string, (v: string) => string][] = [
+  ['FileType', 'Type', (v) => v],
+  ['FileSize', 'File size', (v) => v],
+  ['Make', 'Camera make', (v) => v],
+  ['Model', 'Camera model', (v) => v],
+  ['LensModel', 'Lens', (v) => v],
+  ['FocalLength', 'Focal length', (v) => v],
+  ['FNumber', 'Aperture', (v) => `f/${Number(v)}`],
+  [
+    'ExposureTime',
+    'Shutter',
+    (v) => (Number(v) > 0 && Number(v) < 1 ? `1/${Math.round(1 / Number(v))} s` : `${v} s`),
+  ],
+  ['ISO', 'ISO', (v) => v],
+  ['Flash', 'Flash', (v) => v],
+  ['DateTimeOriginal', 'Date taken', (v) => v],
+  ['CreateDate', 'Created', (v) => toExifDate(v)],
+  ['ModifyDate', 'File modified', (v) => toExifDate(v)],
+  ['Software', 'Software', (v) => v],
+  ['Artist', 'Author', (v) => v],
+  ['Copyright', 'Copyright', (v) => v],
+  ['ImageDescription', 'Description', (v) => v],
+  ['Orientation', 'Orientation', (v) => v],
+  ['ColorSpace', 'Colour space', (v) => v],
+  ['GPSLatitude', 'Latitude', (v) => v],
+  ['GPSLongitude', 'Longitude', (v) => v],
+  ['GPSAltitude', 'Altitude', (v) => `${Number(v).toFixed(1)} m`],
+];
+
 export function Metadata({ paths }: { paths: string[] }) {
   const file = paths[0] as string;
   const image = useImage(file);
   const [original, setOriginal] = useState<Record<string, string>>({});
   const [values, setValues] = useState<Record<string, string>>({});
   const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [details, setDetails] = useState<[string, string][]>([]);
   const [removeGps, setRemoveGps] = useState(false);
   const [removeAll, setRemoveAll] = useState(false);
 
@@ -36,7 +67,18 @@ export function Metadata({ paths }: { paths: string[] }) {
           next[k] = k === 'DateTimeOriginal' ? toExifDate(String(v)) : String(v);
         setOriginal(next);
         setValues(next);
+        const dims =
+          next.ImageWidth && next.ImageHeight
+            ? [['Size', `${next.ImageWidth} × ${next.ImageHeight} px`]]
+            : [];
+        setDetails([
+          ...dims,
+          ...DETAILS.filter(([k]) => next[k] !== undefined && next[k] !== '').map(
+            ([k, label, fmt]): [string, string] => [label, fmt(next[k] as string)],
+          ),
+        ] as [string, string][]);
       })
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : 'unknown error'))
       .finally(() => setLoaded(true));
   }, [file]);
 
@@ -67,11 +109,39 @@ export function Metadata({ paths }: { paths: string[] }) {
       canRun={canRun}
       onRun={go}
     >
-      {image && image !== 'error' && (
-        <img src={image.src} alt="" className="mx-auto mb-4 max-h-[150px] rounded-lg" />
+      <div className="mb-4 flex gap-4">
+        {image && image !== 'error' && (
+          <img
+            src={image.src}
+            alt=""
+            className="max-h-[170px] max-w-[45%] rounded-lg object-contain"
+          />
+        )}
+        <div className="min-w-0 flex-1" aria-label="Current metadata">
+          <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">
+            Current metadata
+          </div>
+          {!loaded && <p className="text-sm text-muted">Reading metadata…</p>}
+          {loaded && details.length > 0 && (
+            <dl className="grid max-h-[170px] grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 overflow-auto text-sm">
+              {details.map(([label, value]) => (
+                <div key={label} className="contents">
+                  <dt className="text-muted">{label}</dt>
+                  <dd className="truncate" title={value}>
+                    {value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          )}
+        </div>
+      </div>
+      {error && (
+        <Callout tone="danger">
+          The metadata could not be read ({error}). You can still edit it.
+        </Callout>
       )}
-      {!loaded && <p className="text-sm text-muted">Reading metadata…</p>}
-      {loaded && Object.keys(original).length === 0 && (
+      {loaded && !error && details.length === 0 && (
         <Callout>No camera or location tags were found. You can still add some.</Callout>
       )}
       <div className={removeAll ? 'pointer-events-none opacity-40' : ''}>

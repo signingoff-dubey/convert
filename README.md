@@ -39,7 +39,8 @@ Your original is never changed. Results are saved in the same folder as it, with
 | Wheel | Default | Purpose |
 |---|---|---|
 | Convert | `Shift+C` | Change format |
-| Tools | `Shift+T` | Compress, edit, crop, redact, annotate, and more |
+| Tools | `Shift+T` | Compress, edit, crop, redact, annotate, merge, password, and more |
+| Share | `Shift+S` | Send files to Claude, ChatGPT, Telegram, WhatsApp, Discord, Slack or Email (copies the files and opens the app; paste with Ctrl+V) |
 | Actions | `Shift+A` | Copy, Move, Copy Path, Terminal, Float, Copy to, Reveal |
 
 Keys are configurable under Settings, then Triggers, with a conflict checker. See `docs/04-KEYBINDINGS-AND-CONFLICTS.md`.

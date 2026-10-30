@@ -31,6 +31,8 @@ const explorer: Win32 = {
   available: true,
   windowClassAt: () => 'CabinetWClass',
   isKeyDown: () => false,
+  visibleWindows: () => [],
+  focusWindow: () => false,
 };
 
 function make(win32: Win32 = explorer) {

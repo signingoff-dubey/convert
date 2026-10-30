@@ -1,5 +1,6 @@
 import {
   actionsFor,
+  sharesFor,
   extensionOf,
   itemsFromMimeTypes,
   targetsFor,
@@ -25,7 +26,12 @@ export interface Prefs {
   disabled: Record<string, string[]>;
 }
 
-const TITLES: Record<WheelId, string> = { convert: 'Convert', tools: 'Tools', actions: 'Actions' };
+const TITLES: Record<WheelId, string> = {
+  convert: 'Convert',
+  tools: 'Tools',
+  actions: 'Actions',
+  share: 'Share',
+};
 const PLACEHOLDER: WedgeView[] = Array.from({ length: 6 }, (_, i) => ({
   id: `ph${i}`,
   label: '',
@@ -63,6 +69,25 @@ export function buildWheel(
     return {
       title,
       disabled: base.length === 0,
+      wedges: applyWheelPrefs(base, prefs.order[key], prefs.disabled[key]),
+      category: null,
+    };
+  }
+
+  if (wheel === 'share') {
+    const result = sharesFor(items);
+    if (result.status !== 'ok')
+      return { title, hint: result.hint, disabled: true, wedges: PLACEHOLDER, category: null };
+    const base = result.items.map((t) => ({
+      id: t.id,
+      label: t.label,
+      icon: WEDGE_ICONS[t.id],
+      enabled: true,
+    }));
+    const key = wheelKey('share', null);
+    return {
+      title,
+      disabled: false,
       wedges: applyWheelPrefs(base, prefs.order[key], prefs.disabled[key]),
       category: null,
     };

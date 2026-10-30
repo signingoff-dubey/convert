@@ -9,6 +9,7 @@ const DEFAULTS: Record<WheelId, Combo> = {
   convert: { modifiers: ['shift'], code: 'KeyC' },
   tools: { modifiers: ['shift'], code: 'KeyT' },
   actions: { modifiers: ['shift'], code: 'KeyA' },
+  share: { modifiers: ['shift'], code: 'KeyS' },
 };
 
 export const MODIFIER_LABEL: Record<string, string> = { shift: 'Shift', ctrl: 'Ctrl', alt: 'Alt' };

@@ -1,9 +1,17 @@
 import { lstat, stat } from 'node:fs/promises';
 import { ToolWindowName } from '../shared/ipc';
-import { actionsFor, targetsFor, toolsFor, type InputItem, type WheelId } from '../shared/formats';
+import {
+  actionsFor,
+  sharesFor,
+  targetsFor,
+  toolsFor,
+  type InputItem,
+  type WheelId,
+} from '../shared/formats';
 import { STRINGS } from '../shared/strings';
 import { checkDropPath } from './jobs/paths';
 import type { JobQueue } from './jobs/queue';
+import { runShare, type ShareDeps } from './services/share';
 import { runAction, type ActionDeps, type ActionId } from './services/actions';
 import { logger } from './services/log';
 import type { ToolWindowManager } from './windows/toolwin';
@@ -14,6 +22,7 @@ export interface DispatchDeps {
   queue: JobQueue;
   toolwin: ToolWindowManager;
   actions: ActionDeps;
+  share: ShareDeps;
   flags(): { office: boolean; heic: boolean };
   notify(text: string, kind?: 'info' | 'error'): void;
 }
@@ -71,6 +80,18 @@ export async function dispatchWedge(
       return;
     }
     await runAction(wedgeId as ActionId, paths, deps.actions);
+    return;
+  }
+
+  if (wheel === 'share') {
+    const files = items.filter((i) => !i.isDirectory);
+    if (sharesFor(items).status !== 'ok' || files.length === 0) return;
+    if (files.length < items.length) deps.notify(STRINGS.toast.foldersNotShared, 'info');
+    await runShare(
+      wedgeId,
+      files.map((f) => f.path),
+      deps.share,
+    );
     return;
   }
 

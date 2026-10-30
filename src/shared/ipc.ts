@@ -3,7 +3,7 @@ import { z } from 'zod';
 // Every IPC channel is declared here, once, with zod schemas (docs/02 section 7).
 // No ad-hoc ipcRenderer.send strings anywhere else. Main validates every payload it receives.
 
-export const WheelId = z.enum(['convert', 'tools', 'actions']);
+export const WheelId = z.enum(['convert', 'tools', 'actions', 'share']);
 export type WheelId = z.infer<typeof WheelId>;
 
 export const ComboInput = z.object({

@@ -10,6 +10,7 @@ const WHEELS: { id: WheelId; label: string }[] = [
   { id: 'convert', label: 'Convert formats' },
   { id: 'tools', label: 'File tools' },
   { id: 'actions', label: 'File actions' },
+  { id: 'share', label: 'Share to apps' },
 ];
 
 /** Three short steps on first run. It never opens again on its own (docs/01 section 8). */

@@ -66,6 +66,12 @@ export const STRINGS = {
     notOnDisk: "This item isn't a file on disk.",
     paused: 'Convert is paused',
     textCopied: (chars: number) => `Copied ${chars.toLocaleString('en-US')} characters of text`,
+    foldersNotShared:
+      'Folders cannot be pasted into a chat, so only the files were shared. Zip a folder first.',
+    shared: (n: number, app: string, via: 'app' | 'window' | 'browser') =>
+      `${n === 1 ? 'File' : `${n} files`} copied. Press Ctrl+V in ${app}${via === 'window' ? ' (in the browser window you already had open)' : via === 'browser' ? ' (opened in your browser)' : ''} to attach.`,
+    shareFailed: (app: string) =>
+      `Could not open ${app}. The files are on the clipboard; paste them there.`,
     copiedToClipboard: (n: number) =>
       n === 1 ? 'Copied to clipboard' : `${n} files copied to clipboard`,
     copied: (n: number) => (n === 1 ? 'Path copied' : `${n} paths copied`),

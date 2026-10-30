@@ -8,6 +8,8 @@ import { setHtmlToPdf } from './engines/html-pdf';
 import { shutdownOcr } from './engines/ocr';
 import { setPdfBackend } from './engines/pdf';
 import { PdfHost } from './services/pdf-host';
+import { openInBrowser } from './services/browsers';
+import { windowFinder } from './services/share';
 import { printHtmlToPdf } from './services/print-pdf';
 import { detectOffice } from './engines/binaries';
 import { heicEncoderAvailable } from './engines/heic';
@@ -95,11 +97,20 @@ async function main(): Promise<void> {
     registry,
   );
 
+  const win32 = createWin32();
   const dispatchDeps: DispatchDeps = {
     queue,
     toolwin,
     flags: () => flags,
     notify: (text, kind) => toasts.info(text, kind),
+    share: {
+      copyFilesToClipboard,
+      hasApp: (protocol) => app.getApplicationNameForProtocol(protocol) !== '',
+      open: (url) => shell.openExternal(url),
+      openWeb: (url) => openInBrowser(url, settings.get().general.shareBrowser),
+      findWebWindow: (pattern) => windowFinder(win32)(pattern),
+      notify: (text, kind) => toasts.info(text, kind),
+    },
     actions: {
       getSettings: () => settings.get(),
       pickFolder: async (defaultPath) => {
@@ -119,7 +130,6 @@ async function main(): Promise<void> {
     },
   };
 
-  const win32 = createWin32();
   let source: HookSource = inertSource;
   if (process.platform === 'win32') {
     try {
@@ -258,6 +268,20 @@ async function main(): Promise<void> {
   if (!state.firstRunDone || !hidden) await settingsWindow.open();
 
   app.on('second-instance', () => void settingsWindow.open());
+  // Closing the settings window leaves Convert running in the tray, so the shortcuts keep working. With
+  // "Keep running in the background" off, closing it quits instead.
+  let toldAboutTray = false;
+  let quitting = false;
+  app.on('before-quit', () => (quitting = true));
+  settingsWindow.onClosed(() => {
+    if (quitting) return;
+    if (!settings.get().general.runInBackground) {
+      app.quit();
+    } else if (!toldAboutTray) {
+      toldAboutTray = true;
+      toasts.info('Convert is still running in the tray. Right-click the tray icon to quit.');
+    }
+  });
   app.on('window-all-closed', () => {
     // Convert lives in the tray; closing windows must not quit it.
   });

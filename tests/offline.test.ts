@@ -10,6 +10,8 @@ const ALLOWED = [
   /^http:\/\/purl\.org\/dc\/elements\/1\.1\/$/,
   /^https:\/\/github\.com\/signingoff-dubey\/convert/,
   /^http:\/\/www\.w3\.org\/2000\/svg$/,
+  // Share to apps: addresses handed to the user's own browser when they pick a target. The app never fetches them.
+  /^https:\/\/(claude\.ai\/new|chatgpt\.com\/|web\.telegram\.org\/|web\.whatsapp\.com\/|discord\.com\/app|app\.slack\.com\/client|mail\.google\.com\/mail\/\?view=cm&fs=1)$/,
 ];
 
 function walk(dir: string): string[] {

@@ -7,7 +7,7 @@ export interface Wedge {
 
 /** Settings key for a wheel's per-category preferences, for example "convert:image". */
 export function wheelKey(wheel: WheelId, category: string | null): string {
-  return `${wheel}:${wheel === 'actions' || category === null ? 'all' : category}`;
+  return `${wheel}:${wheel === 'actions' || wheel === 'share' || category === null ? 'all' : category}`;
 }
 
 /**

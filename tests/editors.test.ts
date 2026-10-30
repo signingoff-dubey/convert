@@ -541,3 +541,41 @@ describe('epub, rtf and office-only formats', () => {
     }
   }, 60_000);
 });
+
+describe('metadata window data', () => {
+  it('reads the details the window shows, including exposure, ISO, size and location', async () => {
+    const { readMetadata } = await import('../src/main/engines/meta');
+    const exiftool = (await import('exiftool-vendored')).exiftool;
+    const p = join(dir, 'tagged.jpg');
+    await sharp({ create: { width: 40, height: 30, channels: 3, background: '#468' } })
+      .jpeg()
+      .toFile(p);
+    await exiftool.write(
+      p,
+      {
+        Make: 'Acme',
+        Model: 'Cam 9',
+        ISO: 400,
+        FNumber: 2.8,
+        ExposureTime: '1/250',
+        GPSLatitude: 12.5,
+        GPSLongitude: -45.25,
+      } as never,
+      ['-overwrite_original'],
+    );
+    const m = await readMetadata(p);
+    expect(m).toMatchObject({
+      Make: 'Acme',
+      Model: 'Cam 9',
+      ISO: 400,
+      FNumber: 2.8,
+      ImageWidth: 40,
+      ImageHeight: 30,
+      FileType: 'JPEG',
+    });
+    expect(m.ExposureTime).toBeCloseTo(0.004, 4);
+    expect(m.GPSLatitude).toBeCloseTo(12.5, 3);
+    expect(m.GPSLongitude).toBeCloseTo(-45.25, 3);
+    expect(m.FileSize).toMatch(/(bytes|kB|MB)$/);
+  });
+});

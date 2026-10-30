@@ -12,7 +12,7 @@ export type Category =
   | 'subtitles'
   | 'archive';
 
-export type WheelId = 'convert' | 'tools' | 'actions';
+export type WheelId = 'convert' | 'tools' | 'actions' | 'share';
 
 export interface InputItem {
   path: string;
@@ -438,6 +438,82 @@ export function toolsFor(items: readonly InputItem[]): WheelResult<Tool> {
   );
   if (tools.length === 0) return disabled('no-tools');
   return { status: 'ok', category: sel.category, items: tools };
+}
+
+/**
+ * Apps a file can be handed to. There is no public way to attach a file to another app's chat, so sharing
+ * copies the files to the clipboard, opens the app (its desktop version when installed, else its website)
+ * and the user pastes with Ctrl+V. Only these fixed addresses are ever opened.
+ */
+export interface ShareTarget extends Tool {
+  /** Custom address that opens the installed desktop app. */
+  protocol: string;
+  /** Opened in the browser when the desktop app is not installed. */
+  web: string;
+  /** Matches the title of a browser window that has this web app open (the active tab's title). */
+  title: string;
+}
+
+export const SHARE_TARGETS: readonly ShareTarget[] = [
+  {
+    id: 'claude',
+    label: 'Claude',
+    protocol: 'claude://',
+    web: 'https://claude.ai/new',
+    title: '^Claude\\b',
+  },
+  {
+    id: 'chatgpt',
+    label: 'ChatGPT',
+    protocol: 'chatgpt://',
+    web: 'https://chatgpt.com/',
+    title: '^ChatGPT\\b',
+  },
+  {
+    id: 'telegram',
+    label: 'Telegram',
+    protocol: 'tg://',
+    web: 'https://web.telegram.org/',
+    title: '^(\\(\\d+\\) )?Telegram',
+  },
+  {
+    id: 'whatsapp',
+    label: 'WhatsApp',
+    protocol: 'whatsapp://',
+    web: 'https://web.whatsapp.com/',
+    title: '^(\\(\\d+\\) )?WhatsApp',
+  },
+  {
+    id: 'discord',
+    label: 'Discord',
+    protocol: 'discord://',
+    web: 'https://discord.com/app',
+    title: 'Discord',
+  },
+  {
+    id: 'slack',
+    label: 'Slack',
+    protocol: 'slack://open',
+    web: 'https://app.slack.com/client',
+    title: 'Slack',
+  },
+  {
+    id: 'email',
+    label: 'Email',
+    protocol: 'mailto:',
+    web: 'https://mail.google.com/mail/?view=cm&fs=1',
+    title: '^(Inbox|Gmail|Compose|New Message)',
+  },
+].map((t) => ({
+  ...t,
+  description: `Copy the files, open ${t.label} and paste them into a chat with Ctrl+V.`,
+}));
+
+/** Sharing works on files of any type, mixed selections included; folders cannot be pasted into a chat. */
+export function sharesFor(items: readonly InputItem[]): WheelResult<ShareTarget> {
+  if (items.length === 0) return disabled('empty');
+  if (items.every((i) => i.isDirectory)) return disabled('folder');
+  return { status: 'ok', category: 'archive', items: [...SHARE_TARGETS] };
 }
 
 /** Actions work on anything, including folders and mixed selections. */

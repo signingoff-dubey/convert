@@ -88,7 +88,7 @@ export function registerIpc(ctx: IpcContext): void {
 
   const current = (): Settings => ctx.settings.get();
   const others = (wheel: WheelId): RecordedCombo[] =>
-    (['convert', 'tools', 'actions'] as const)
+    (['convert', 'tools', 'actions', 'share'] as const)
       .filter((w) => w !== wheel)
       .map((w) => current().triggers[w]);
 
@@ -148,7 +148,7 @@ export function registerIpc(ctx: IpcContext): void {
       string,
       ReturnType<typeof validateCombo> & { probe: ReturnType<typeof probe> }
     > = {};
-    for (const w of ['convert', 'tools', 'actions'] as const) {
+    for (const w of ['convert', 'tools', 'actions', 'share'] as const) {
       const combo = current().triggers[w];
       const result = probe(combo, ctx.shortcuts);
       out[w] = { ...validateCombo(combo, others(w), result), probe: result };
@@ -220,7 +220,8 @@ export function registerIpc(ctx: IpcContext): void {
   });
   handle('meta:read', async ({ path: file }, event) => {
     if (!allowedFor(event, file)) throw new Error('not allowed');
-    const view = await readMetadata(file).catch(() => ({}));
+    // A failure is reported to the window instead of looking like "no metadata".
+    const view = await readMetadata(file);
     return Object.fromEntries(
       Object.entries(view).filter((e): e is [string, string | number] => e[1] !== undefined),
     );

@@ -23,8 +23,9 @@ const check = (name, ok, detail = '') => {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  ' + detail : ''}`);
 };
 
-async function launch(dir, extraArgs) {
+async function launch(dir, extraArgs, seed) {
   const profile = mkdtempSync(join(tmpdir(), 'convert-profile-'));
+  if (seed) seed(profile);
   const app = await electron.launch({
     executablePath: require('electron'),
     args: ['--no-sandbox', '--disable-gpu', join(root, 'out/main/index.js'), ...extraArgs],
@@ -258,6 +259,51 @@ const windowOf = (app, part) => app.windows().find((w) => w.url().includes(part)
   app = await launch(dir, ['--hidden', '--convert', 'webp', join(dir, 'sendto.png')]);
   await wait(4000);
   check('--convert converts the files it is given', existsSync(join(dir, 'sendto.webp')));
+  await app.close();
+  // Recent conversions: a history entry with a picture result shows a thumbnail and can be opened.
+  app = await launch(dir, [], (profile) => {
+    const data = join(profile, '.config', 'Convert');
+    mkdirSync(data, { recursive: true });
+    writeFileSync(
+      join(data, 'state.json'),
+      JSON.stringify({
+        firstRunDone: true,
+        recentFolders: [],
+        floatDock: 'right',
+        history: [
+          {
+            id: 'h1',
+            name: 'a.png',
+            output: join(dir, 'a.png'),
+            input: join(dir, 'a.png'),
+            op: 'png',
+            at: Date.now() - 120000,
+            count: 1,
+          },
+          {
+            id: 'h2',
+            name: 'gone.pdf',
+            output: join(dir, 'gone.pdf'),
+            input: join(dir, 'x.docx'),
+            op: 'pdf',
+            at: Date.now() - 86400000,
+            count: 1,
+          },
+        ],
+      }),
+    );
+  });
+  win = windowOf(app, 'settings.html');
+  await win.getByRole('button', { name: 'Recent', exact: true }).click();
+  await wait(1200);
+  check(
+    'recent conversions lists the results with their age',
+    (await win.getByText('2 min ago').count()) === 1 &&
+      (await win.getByText('moved or deleted').count()) === 1,
+  );
+  check('a picture result shows a thumbnail', (await win.locator('main li img').count()) === 1);
+  if (process.env.SMOKE_SHOTS)
+    await win.screenshot({ path: join(process.env.SMOKE_SHOTS, 'recent-filled.png') });
   await app.close();
 
   const failed = results.filter((r) => !r).length;

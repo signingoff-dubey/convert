@@ -1373,3 +1373,46 @@ describe('more audio and video containers', () => {
     }
   }, 120_000);
 });
+
+describe('pages per sheet', () => {
+  it('puts 2, 4, 6 or 9 pages on each sheet, in the order given, and rejects other counts', async () => {
+    const { SHEET_LAYOUTS } = await import('../src/main/engines/pdf');
+    expect(Object.keys(SHEET_LAYOUTS)).toEqual(['2', '4', '6', '9']);
+    const src = await makePdf(
+      'nup.pdf',
+      Array.from({ length: 7 }, (_, i) => `p${i + 1}`),
+    );
+    const sheets = async (perSheet: number) => {
+      const r = (
+        await run('delete-pages', 'tool', [src], { order: '1,2,3,4,5,6,7', perSheet })
+      )[0] as JobResult;
+      return PDFDocument.load(readFileSync(ok(r)));
+    };
+    expect((await sheets(2)).getPageCount()).toBe(4);
+    expect((await sheets(4)).getPageCount()).toBe(2);
+    const six = await sheets(6);
+    expect(six.getPageCount()).toBe(2);
+    expect(six.getPage(0).getSize()).toEqual({ width: 842, height: 595 }); // landscape for 2 and 6
+    expect((await sheets(9)).getPageCount()).toBe(1);
+    const bad = (
+      await run('delete-pages', 'tool', [src], { order: '1,2', perSheet: 5 })
+    )[0] as JobResult;
+    expect(bad.status).toBe('error');
+    // The text of every page is still there, just smaller.
+    const text = readFileSync(
+      ok(
+        (
+          await run('txt', 'convert', [
+            ok(
+              (
+                await run('delete-pages', 'tool', [src], { order: '1,2,3,4', perSheet: 4 })
+              )[0] as JobResult,
+            ),
+          ])
+        )[0] as JobResult,
+      ),
+      'utf8',
+    );
+    for (const p of ['p1', 'p2', 'p3', 'p4']) expect(text).toContain(p);
+  });
+});

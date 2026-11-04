@@ -140,6 +140,8 @@ export const CHANNELS = {
         at: z.number(),
         count: z.number(),
         exists: z.boolean(),
+        /** Set for picture results that can be shown as a thumbnail, otherwise empty. */
+        thumb: z.string(),
       }),
     ),
   },

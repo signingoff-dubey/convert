@@ -45,6 +45,7 @@ export function DeletePages({ paths }: { paths: string[] }) {
   const [error, setError] = useState<string | null>(null);
   const [watermark, setWatermark] = useState('');
   const [numbers, setNumbers] = useState(false);
+  const [perSheet, setPerSheet] = useState(1);
   const made = useRef<string[]>([]);
 
   useEffect(() => {
@@ -98,7 +99,7 @@ export function DeletePages({ paths }: { paths: string[] }) {
     });
 
   const kept = items.filter((i) => i.keep);
-  const stamp = watermark.trim() !== '' || numbers;
+  const stamp = watermark.trim() !== '' || numbers || perSheet > 1;
   const changed = useMemo(
     () =>
       items.length > 0 &&
@@ -116,6 +117,7 @@ export function DeletePages({ paths }: { paths: string[] }) {
           order: orderOf(items),
           watermark: watermark.trim(),
           pageNumbers: numbers,
+          perSheet,
         })
       }
       side={
@@ -139,6 +141,24 @@ export function DeletePages({ paths }: { paths: string[] }) {
             <Switch label="Add page numbers" checked={numbers} onChange={setNumbers} />
           </label>
           <p className="mb-4 mt-1 text-xs text-muted">Small “3 / 12” at the bottom centre.</p>
+          <label className="mb-1 block text-sm font-medium" htmlFor="ups">
+            Pages per sheet
+          </label>
+          <select
+            id="ups"
+            className={inputCls}
+            value={perSheet}
+            onChange={(e) => setPerSheet(Number(e.target.value))}
+          >
+            <option value={1}>1 (as they are)</option>
+            <option value={2}>2</option>
+            <option value={4}>4</option>
+            <option value={6}>6</option>
+            <option value={9}>9</option>
+          </select>
+          <p className="mb-4 mt-1 text-xs text-muted">
+            Puts several pages on each A4 sheet, for printing.
+          </p>
           <div className="text-sm text-muted">
             {total === null ? 'Reading the PDF…' : `Keeping ${kept.length} of ${total} pages.`}
           </div>

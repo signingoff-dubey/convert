@@ -74,6 +74,10 @@ Other types have their own tools:
 - **Text and Markdown:** Merge two or more; Markdown, text, HTML and EPUB convert to PDF without installing anything.
 - **ZIP:** Password (add or remove). Select several ZIPs and choose Extract here: each unzips into its own folder.
 - **Actions:** Zip any mix of files and folders into one archive.
+- **PDF page editor:** remove, turn and reorder pages, add a watermark or page numbers, or put 2, 4, 6 or 9 pages on each sheet.
+- **Watch folders and Recent:** Settings → Watch folders converts every new file that lands in a folder; Settings → Recent lists your results with thumbnails.
+- **Explorer and the command line:** turn on Send to in Settings → General for "Convert to PDF / PNG / JPG…" in the right-click menu, or run `Convert.exe --convert pdf file1 file2`.
+- **More file types:** JSON, YAML, TOML, XML, CSV, vCard, iCalendar, fonts (TTF/WOFF/WOFF2), email (EML), maps (GeoJSON/KML/GPX), subtitles (ASS/LRC/SBV), ICO, AAC, AC3.
 
 ## Stack
 

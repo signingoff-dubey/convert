@@ -7,7 +7,7 @@ import { app, dialog, ipcMain, nativeTheme, shell, type IpcMainInvokeEvent } fro
 import { PDFDocument } from 'pdf-lib';
 import sharp from 'sharp';
 import { z, ZodError } from 'zod';
-import { categoryOf } from '../shared/formats';
+import { categoryOf, extensionOf } from '../shared/formats';
 import { STRINGS } from '../shared/strings';
 import {
   CHANNELS,
@@ -21,6 +21,7 @@ import { validateDropped, type DispatchDeps } from './dispatch';
 import { probeDuration } from './engines/av';
 import { detectOffice } from './engines/binaries';
 import { pageThumbnails } from './engines/pdf';
+import { allowPreview } from './protocol';
 import { isEncrypted } from './engines/protect';
 import { detectTextBoxes, readFaceModel } from './engines/detect';
 import { engineStatus } from './engines/status';
@@ -293,15 +294,27 @@ export function registerIpc(ctx: IpcContext): void {
   // ---- recent conversions
   const entryFor = (id: string) => ctx.state.history.find((h) => h.id === id);
   handle('history:list', () =>
-    ctx.state.history.map((h) => ({
-      id: h.id,
-      name: h.name,
-      dir: path.dirname(h.output),
-      op: h.op,
-      at: h.at,
-      count: h.count,
-      exists: existsSync(h.output),
-    })),
+    ctx.state.history.map((h) => {
+      const exists = existsSync(h.output);
+      // Picture results get a thumbnail; the preview protocol only serves files registered here.
+      const thumb =
+        exists &&
+        h.count === 1 &&
+        ['jpg', 'png', 'webp', 'avif', 'bmp', 'gif'].includes(extensionOf(h.output))
+          ? h.output
+          : '';
+      if (thumb) allowPreview([thumb]);
+      return {
+        id: h.id,
+        name: h.name,
+        dir: path.dirname(h.output),
+        op: h.op,
+        at: h.at,
+        count: h.count,
+        exists,
+        thumb,
+      };
+    }),
   );
   // Only files Convert itself recorded can be opened, never a path sent by a window.
   handle('history:open', async ({ id }) => {

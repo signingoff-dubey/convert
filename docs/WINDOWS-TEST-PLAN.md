@@ -115,3 +115,13 @@ After every row that converts something, confirm the original still exists and i
 | 55 | Close the settings window | A toast says Convert is still running in the tray; Shift+C still works. Turn "Keep running in the background" off: closing quits. |
 | 56 | Drag a camera photo, **Shift+T**, Metadata | Camera, lens, exposure, ISO, size, dates and location appear next to the thumbnail. |
 
+## 8. Watch folders, Recent, Send to, new types
+
+| # | Do this | Expect |
+|---|---|---|
+| 57 | Settings, Watch folders, add Downloads set to PDF; save a PNG into it | A PDF appears beside it a moment later. A half-downloaded file waits. |
+| 58 | Convert a picture, open Settings, Recent | The result is listed with a thumbnail. Open and the folder button work. |
+| 59 | Settings, General, turn on Send to; right-click two images, Show more options, Send to, Convert to PDF | Both are converted. Turning the switch off removes the entries. |
+| 60 | Drag a PDF, Shift+T, Edit pages: remove one page, turn another, add a watermark, 4 per sheet | A new PDF with those changes. The original is untouched. |
+| 61 | Convert a JSON file to YAML, TOML, CSV; a `.vcf` to CSV; a `.eml` to PDF; a `.kml` to GPX; a `.woff2` to TTF; a PNG to ICO | Each works; the ICO shows in Explorer. |
+

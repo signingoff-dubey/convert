@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { STRINGS } from '../../../shared/strings';
 import { Button } from '../../components/ui';
 import { WEDGE_ICONS } from '../../components/icons';
-import { invoke, on } from '../../shared/api';
+import { invoke, on, previewSrc } from '../../shared/api';
 
 interface Entry {
   id: string;
@@ -13,6 +13,7 @@ interface Entry {
   at: number;
   count: number;
   exists: boolean;
+  thumb: string;
 }
 
 /** "just now", "5 min ago", "yesterday": short and readable. */
@@ -67,8 +68,12 @@ export function Recent() {
           const Icon = WEDGE_ICONS[e.op] ?? FileText;
           return (
             <li key={e.id} className="flex items-center gap-3 px-4 py-3">
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-surface2 text-accent">
-                <Icon size={18} />
+              <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-surface2 text-accent">
+                {e.thumb ? (
+                  <img src={previewSrc(e.thumb)} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <Icon size={18} />
+                )}
               </span>
               <div className="min-w-0 flex-1">
                 <div

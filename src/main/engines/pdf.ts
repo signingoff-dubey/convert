@@ -451,6 +451,50 @@ export function latin(text: string): string {
   return text.replace(/[^\x20-\x7E\u00A1-\u00FF]/g, '?').slice(0, 80);
 }
 
+/** How many pages fit on a sheet, as columns by rows, and whether the sheet lies on its side. */
+export const SHEET_LAYOUTS: Record<number, { cols: number; rows: number; landscape: boolean }> = {
+  2: { cols: 2, rows: 1, landscape: true },
+  4: { cols: 2, rows: 2, landscape: false },
+  6: { cols: 3, rows: 2, landscape: true },
+  9: { cols: 3, rows: 3, landscape: false },
+};
+
+/** Puts several pages of `doc` on each A4 sheet, in reading order, each shrunk to fit its cell. */
+async function nUp(doc: PDFDocument, perSheet: number): Promise<PDFDocument> {
+  const layout = SHEET_LAYOUTS[perSheet];
+  if (!layout) return doc;
+  const out = await PDFDocument.create();
+  const embedded = await out.embedPages(doc.getPages());
+  const [w, h] = layout.landscape ? [842, 595] : [595, 842];
+  const margin = 18;
+  const cellW = (w - margin * 2) / layout.cols;
+  const cellH = (h - margin * 2) / layout.rows;
+  for (let start = 0; start < embedded.length; start += perSheet) {
+    const sheet = out.addPage([w, h]);
+    embedded.slice(start, start + perSheet).forEach((page, i) => {
+      const scale = Math.min((cellW - 8) / page.width, (cellH - 8) / page.height);
+      const col = i % layout.cols;
+      const row = Math.floor(i / layout.cols);
+      sheet.drawPage(page, {
+        x: margin + col * cellW + (cellW - page.width * scale) / 2,
+        y: h - margin - (row + 1) * cellH + (cellH - page.height * scale) / 2,
+        xScale: scale,
+        yScale: scale,
+      });
+      // A hairline around each page so the edges of white pages can be seen.
+      sheet.drawRectangle({
+        x: margin + col * cellW + (cellW - page.width * scale) / 2,
+        y: h - margin - (row + 1) * cellH + (cellH - page.height * scale) / 2,
+        width: page.width * scale,
+        height: page.height * scale,
+        borderColor: rgb(0.8, 0.8, 0.8),
+        borderWidth: 0.5,
+      });
+    });
+  }
+  return out;
+}
+
 /** Keeps, reorders and turns pages, and can stamp a watermark and page numbers. Writes a new PDF. */
 async function deletePages(input: string, op: Operation, ctx: RunContext): Promise<void> {
   const src = await loadPdfLib(input);
@@ -464,8 +508,13 @@ async function deletePages(input: string, op: Operation, ctx: RunContext): Promi
           .map((index) => ({ index, rotate: 0 }));
   const watermark = latin(String(params.watermark ?? '')).trim();
   const numbers = params.pageNumbers === true || params.pageNumbers === 'true';
+  const perSheet = Number(params.perSheet ?? 1);
+  if (perSheet !== 1 && !SHEET_LAYOUTS[perSheet])
+    throw new JobError('E_UNSUPPORTED', 'pages per sheet must be 2, 4, 6 or 9');
   const unchanged =
-    picks.length === count && picks.every((p, i) => p.index === i && p.rotate === 0);
+    perSheet === 1 &&
+    picks.length === count &&
+    picks.every((p, i) => p.index === i && p.rotate === 0);
   if (unchanged && !watermark && !numbers)
     throw new JobError('E_UNSUPPORTED', 'nothing was changed: every page is kept as it was');
   const out = await PDFDocument.create();
@@ -508,9 +557,10 @@ async function deletePages(input: string, op: Operation, ctx: RunContext): Promi
     if (turn) page.setRotation(degrees((page.getRotation().angle + turn) % 360));
     out.addPage(page);
   });
-  out.setTitle(src.getTitle() ?? '');
-  out.setAuthor(src.getAuthor() ?? '');
-  await writeFile(ctx.tempPath, await out.save());
+  const result = perSheet > 1 ? await nUp(out, perSheet) : out;
+  result.setTitle(src.getTitle() ?? '');
+  result.setAuthor(src.getAuthor() ?? '');
+  await writeFile(ctx.tempPath, await result.save());
 }
 
 async function merge(ctx: RunContext): Promise<void> {

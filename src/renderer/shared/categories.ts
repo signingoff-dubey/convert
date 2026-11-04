@@ -84,11 +84,15 @@ export const FORMAT_TABLE: readonly { category: string; formats: string[]; note?
     formats: ['GeoJSON', 'KML', 'GPX'],
     note: 'Into each other and CSV (points as longitude and latitude).',
   },
-  { category: 'Audio', formats: ['MP3', 'M4A', 'WAV', 'FLAC', 'OGG', 'Opus', 'AIFF', 'WMA'] },
+  {
+    category: 'Audio',
+    formats: ['MP3', 'M4A', 'WAV', 'FLAC', 'OGG', 'Opus', 'AAC', 'AC3', 'AIFF', 'WMA'],
+    note: 'AMR and CAF are also read.',
+  },
   {
     category: 'Video',
     formats: ['MP4', 'MOV', 'MKV', 'WebM', 'AVI', 'WMV', 'GIF'],
-    note: 'MP3 export. GIF is also an input.',
+    note: 'MP3 export. Also read: FLV, MPEG, M4V, 3GP, OGV, VOB.',
   },
   {
     category: 'PDF',

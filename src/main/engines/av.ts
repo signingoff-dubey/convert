@@ -30,6 +30,8 @@ const CONVERT_OUT = new Set([
   'webm',
   'mkv',
   'gif',
+  'aac',
+  'ac3',
 ]);
 const TOOLS = new Set(['compress', 'extract-audio', 'trim', 'normalize', 'frames', 'merge']);
 

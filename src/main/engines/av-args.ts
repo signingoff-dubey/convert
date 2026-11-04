@@ -12,6 +12,8 @@ const AUDIO_CODECS: Record<string, string[]> = {
   opus: ['-c:a', 'libopus', '-b:a', '128k'],
   wma: ['-c:a', 'wmav2', '-b:a', '192k'],
   aiff: ['-c:a', 'pcm_s16be'],
+  aac: ['-c:a', 'aac', '-b:a', '192k'],
+  ac3: ['-c:a', 'ac3', '-b:a', '192k'],
 };
 
 const AUDIO_COMPRESS: Record<string, string[]> = {
@@ -23,6 +25,8 @@ const AUDIO_COMPRESS: Record<string, string[]> = {
   opus: ['-c:a', 'libopus', '-b:a', '64k'],
   wma: ['-c:a', 'wmav2', '-b:a', '128k'],
   aiff: ['-c:a', 'pcm_s16be', '-ar', '22050'],
+  aac: ['-c:a', 'aac', '-b:a', '128k'],
+  ac3: ['-c:a', 'ac3', '-b:a', '128k'],
 };
 
 /** H.264 and VP9 need even dimensions and 4:2:0 pixels to play everywhere; GIF input often has neither. */
@@ -52,10 +56,28 @@ function videoCodecs(ext: string, crf: number, scaled = true): string[] {
 
 export type MediaKind = 'audio' | 'video';
 
+/** Containers ffmpeg reads as video. Only some of them are offered as an output. */
+const VIDEO_EXTS = [
+  'mp4',
+  'mov',
+  'mkv',
+  'webm',
+  'avi',
+  'wmv',
+  'gif',
+  'flv',
+  'mpg',
+  'mpeg',
+  'm4v',
+  '3gp',
+  'ogv',
+  'vob',
+];
+
 export function mediaKindOf(path: string): MediaKind | null {
   const ext = extensionOf(path);
   if (ext in AUDIO_CODECS) return 'audio';
-  if (['mp4', 'mov', 'mkv', 'webm', 'avi', 'wmv', 'gif'].includes(ext)) return 'video';
+  if (VIDEO_EXTS.includes(ext)) return 'video';
   return null;
 }
 

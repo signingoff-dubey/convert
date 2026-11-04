@@ -1341,3 +1341,35 @@ describe('fonts, email, maps, contacts and calendars', () => {
     expect((await run('json', 'convert', [put('empty.ics', 'nothing')]))[0]?.status).toBe('error');
   });
 });
+
+describe('more audio and video containers', () => {
+  it('writes AAC and AC3, and reads FLV, MPEG and 3GP video', async () => {
+    const wav = makeAudio('src.wav', 1);
+    for (const target of ['aac', 'ac3']) {
+      const out = ok((await run(target, 'convert', [wav]))[0] as JobResult);
+      expect(out.endsWith(`.${target}`)).toBe(true);
+      expect((await probeDuration(out)) ?? 0).toBeGreaterThan(0.5);
+    }
+    for (const ext of ['flv', 'mpg', '3gp']) {
+      const p = join(dir, `clip.${ext}`);
+      execFileSync(ffmpeg(), [
+        '-y',
+        '-loglevel',
+        'error',
+        '-f',
+        'lavfi',
+        '-i',
+        'testsrc=duration=1:size=176x144:rate=25',
+        '-f',
+        'lavfi',
+        '-i',
+        'sine=duration=1',
+        '-shortest',
+        ...(ext === '3gp' ? ['-c:v', 'h263', '-s', '176x144', '-c:a', 'aac'] : []),
+        p,
+      ]);
+      const r = (await run('mp4', 'convert', [p]))[0] as JobResult;
+      expect(r.status, `${ext}: ${JSON.stringify(r.error)}`).toBe('ok');
+    }
+  }, 120_000);
+});

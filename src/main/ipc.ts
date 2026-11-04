@@ -3,7 +3,15 @@ import { readFileSync, existsSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { app, dialog, ipcMain, nativeTheme, shell, type IpcMainInvokeEvent } from 'electron';
+import {
+  app,
+  clipboard,
+  dialog,
+  ipcMain,
+  nativeTheme,
+  shell,
+  type IpcMainInvokeEvent,
+} from 'electron';
 import { PDFDocument } from 'pdf-lib';
 import sharp from 'sharp';
 import { z, ZodError } from 'zod';
@@ -20,6 +28,8 @@ import {
 import { validateDropped, type DispatchDeps } from './dispatch';
 import { probeDuration } from './engines/av';
 import { detectOffice } from './engines/binaries';
+import { buildDiagnostics, readLogTail } from './services/diagnostics';
+import { runSelfTest } from './services/selftest';
 import type { Updater } from './services/updater';
 import { saveWebItems, type WebDropDeps } from './services/webdrop';
 import { pageThumbnails } from './engines/pdf';
@@ -55,6 +65,8 @@ export interface IpcContext {
   toolwin: ToolWindowManager;
   pdfHost: PdfHost;
   updater: Updater;
+  /** Whether the global input hooks are running. */
+  hooksStarted(): boolean;
   /** Where dragged web pictures are saved, and how an address is fetched. */
   web: WebDropDeps;
   float: FloatShelf;
@@ -340,6 +352,25 @@ export function registerIpc(ctx: IpcContext): void {
   handle('history:reveal', ({ id }) => {
     const e = entryFor(id);
     if (e && existsSync(e.output)) shell.showItemInFolder(e.output);
+  });
+  handle('engines:selftest', () =>
+    runSelfTest({ openPdf: ctx.pdfHost.open, hooksStarted: ctx.hooksStarted() }),
+  );
+  handle('app:copy-diagnostics', async () => {
+    const engines = await engineStatus(current().engines.officeEnginePath);
+    clipboard.writeText(
+      buildDiagnostics({
+        version: app.getVersion(),
+        electron: process.versions.electron ?? '',
+        chrome: process.versions.chrome ?? '',
+        node: process.versions.node,
+        packaged: app.isPackaged,
+        engines,
+        settings: current(),
+        updateState: ctx.updater.status().state,
+        logTail: readLogTail(),
+      }),
+    );
   });
   handle('update:status', () => ctx.updater.status());
   handle('update:check', () => ctx.updater.check(true));

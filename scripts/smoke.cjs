@@ -267,6 +267,14 @@ const windowOf = (app, part) => app.windows().find((w) => w.url().includes(part)
     writeFileSync(join(data, 'state.json'), JSON.stringify({ firstRunDone: true, history: [] }));
   });
   win = windowOf(app, 'settings.html');
+  await win.getByRole('button', { name: 'Engines', exact: true }).click();
+  await win.getByRole('button', { name: 'Run self-test' }).click();
+  await win.getByText(/\d of 8 passed/).waitFor({ timeout: 90000 });
+  const passed = await win.getByText(/\d of 8 passed/).innerText();
+  if (process.env.SMOKE_SHOTS)
+    await win.screenshot({ path: join(process.env.SMOKE_SHOTS, 'selftest.png') });
+  // Every engine must work in the real app; only the Windows-only input hooks may fail on Linux.
+  check('the self-test passes in the real app', /^(7|8) of 8 passed/.test(passed), passed);
   await win.getByRole('button', { name: 'About', exact: true }).click();
   await wait(800);
   check(

@@ -224,6 +224,19 @@ export const CHANNELS = {
       }),
     ),
   },
+  'engines:selftest': {
+    request: z.undefined(),
+    response: z.array(
+      z.object({
+        id: z.string(),
+        label: z.string(),
+        ok: z.boolean(),
+        detail: z.string(),
+        ms: z.number(),
+      }),
+    ),
+  },
+  'app:copy-diagnostics': { request: z.undefined(), response: z.void() },
   'engines:detect-office': { request: z.undefined(), response: z.string().nullable() },
   'app:meta': {
     request: z.undefined(),

@@ -82,6 +82,8 @@ Other types have their own tools:
 - **PDF page editor:** remove, turn and reorder pages, add a watermark or page numbers, or put 2, 4, 6 or 9 pages on each sheet.
 - **Watch folders and Recent:** Settings → Watch folders converts every new file that lands in a folder; Settings → Recent lists your results with thumbnails.
 - **Explorer and the command line:** turn on Send to in Settings → General for "Convert to PDF / PNG / JPG…" in the right-click menu, or run `Convert.exe --convert pdf file1 file2`.
+- **Drag from a browser:** drag a picture out of Chrome, Edge, Firefox or Brave onto the wheel; it is saved in Downloads first, then you can convert, compress or share it.
+- **Stays up to date:** new versions download quietly from this project's GitHub releases and install when Convert is idle (switch off in Settings → General). Settings → Engines has a self-test that checks every engine on your PC.
 - **More file types:** JSON, YAML, TOML, XML, CSV, vCard, iCalendar, fonts (TTF/WOFF/WOFF2), email (EML), maps (GeoJSON/KML/GPX), subtitles (ASS/LRC/SBV), ICO, AAC, AC3.
 
 ## Stack

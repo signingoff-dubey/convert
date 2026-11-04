@@ -29,6 +29,8 @@ export const WINDOW_ACCESS: Record<PageName, { invoke: readonly string[]; on: re
         'shell:open-logs',
         'engines:status',
         'engines:detect-office',
+        'engines:selftest',
+        'app:copy-diagnostics',
         'app:meta',
         'app:licenses',
         'app:onboarding',

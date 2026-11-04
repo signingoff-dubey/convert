@@ -83,6 +83,8 @@ export interface QueueDeps {
   exists?(path: string): boolean;
   /** Puts text on the clipboard. Only Copy text uses it. */
   copyText?(text: string): void;
+  /** Records scratch folders so a crash cannot leave them behind for good. */
+  tempTracker?: { add(dir: string): void; remove(dir: string): void };
 }
 
 export function toJobError(error: unknown): { code: ErrorCode; message: string } {
@@ -272,6 +274,7 @@ export class JobQueue extends EventEmitter {
       await mkdir(parent, { recursive: true });
       tempDir = path.join(parent, `~convert-${job.id.slice(0, 8)}`);
       await mkdir(tempDir, { recursive: true });
+      this.deps.tempTracker?.add(tempDir);
       const outDir = path.join(tempDir, 'out');
       await mkdir(outDir, { recursive: true });
       const tempPath = path.join(tempDir, `out.${plan.type === 'file' ? plan.ext : 'tmp'}`);
@@ -336,7 +339,10 @@ export class JobQueue extends EventEmitter {
       }
     } finally {
       clearTimeout(job.stallTimer);
-      if (tempDir) await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+      if (tempDir) {
+        await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+        this.deps.tempTracker?.remove(tempDir);
+      }
     }
   }
 

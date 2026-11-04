@@ -20,18 +20,31 @@ export interface WatchDeps {
   flags(): { office: boolean; heic: boolean };
   notify(text: string, kind?: 'info' | 'error'): void;
   /** Injected so tests do not depend on the operating system's watcher. */
-  watch?: (folder: string, onName: (name: string) => void) => { close(): void };
+  watch?: (
+    folder: string,
+    onName: (name: string) => void,
+    onError: () => void,
+  ) => { close(): void };
+  /** How long to wait before trying a folder again after its watcher stopped (default 30 seconds). */
+  retryMs?: number;
   settleMs?: number;
 }
 
 /** Names that are work in progress: a download, a temporary file or Convert's own scratch folder. */
 const IN_PROGRESS = /(^~|\.(crdownload|part|partial|tmp|temp|download|opdownload)$|^\.)/i;
 
-function nativeWatch(folder: string, onName: (name: string) => void): { close(): void } {
+function nativeWatch(
+  folder: string,
+  onName: (name: string) => void,
+  onError: () => void,
+): { close(): void } {
   const w: FSWatcher = fsWatch(folder, { persistent: false }, (_event, name) => {
     if (name) onName(name.toString());
   });
-  w.on('error', (error) => log.error(`watcher for ${folder} stopped`, error));
+  w.on('error', (error) => {
+    log.error(`watcher for ${folder} stopped`, error);
+    onError();
+  });
   return w;
 }
 
@@ -50,6 +63,7 @@ export class WatchService {
 
   /** (Re)starts the watchers for the enabled rules. Safe to call on every settings change. */
   apply(rules: readonly WatchRule[]): void {
+    this.lastRules = rules;
     const wanted = new Map(rules.filter((r) => r.enabled).map((r) => [r.id, r]));
     for (const [id, w] of this.watchers) {
       if (!wanted.has(id)) {
@@ -71,17 +85,37 @@ export class WatchService {
         const start = this.deps.watch ?? nativeWatch;
         this.watchers.set(
           rule.id,
-          start(check.path, (name) => this.changed(rule, path.join(check.path, name))),
+          start(
+            check.path,
+            (name) => this.changed(rule, path.join(check.path, name)),
+            () => this.failed(rule),
+          ),
         );
         this.keys.set(rule.id, key);
       } catch (error) {
+        // A folder that is missing now (an unplugged drive) is retried later instead of reported every time.
         log.error(`could not watch ${rule.folder}`, error);
-        this.deps.notify(`Could not watch ${rule.folder}.`, 'error');
+        this.failed(rule);
       }
     }
   }
 
   private keys = new Map<string, string>();
+  private lastRules: readonly WatchRule[] = [];
+  private retry: NodeJS.Timeout | null = null;
+
+  /** A watcher died (the folder was deleted, a drive was unplugged): try again shortly, quietly. */
+  private failed(rule: WatchRule): void {
+    this.watchers.get(rule.id)?.close();
+    this.watchers.delete(rule.id);
+    this.keys.delete(rule.id);
+    if (this.retry) return;
+    this.retry = setTimeout(() => {
+      this.retry = null;
+      this.apply(this.lastRules);
+    }, this.deps.retryMs ?? 30_000);
+    this.retry.unref?.();
+  }
 
   /** Remember results Convert wrote, so a watched output folder does not feed itself. */
   ignore(files: readonly string[]): void {
@@ -89,6 +123,8 @@ export class WatchService {
   }
 
   stop(): void {
+    if (this.retry) clearTimeout(this.retry);
+    this.retry = null;
     for (const w of this.watchers.values()) w.close();
     for (const t of this.timers.values()) clearTimeout(t);
     this.watchers.clear();

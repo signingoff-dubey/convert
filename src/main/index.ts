@@ -19,6 +19,7 @@ import { windowFinder } from './services/share';
 import type { JobResult } from './jobs/types';
 import { MAX_WEB_BYTES, type WebFetchResult } from './services/webdrop';
 import { REPO, Updater } from './services/updater';
+import { TempTracker } from './services/temp-tracker';
 import { WatchService } from './services/watch';
 import { printHtmlToPdf } from './services/print-pdf';
 import { detectOffice } from './engines/binaries';
@@ -135,7 +136,10 @@ async function main(): Promise<void> {
   };
   void heicEncoderAvailable().then((v) => (flags.heic = v));
 
+  const temp = new TempTracker(path.join(userData, 'scratch-folders.json'));
+  void temp.sweep();
   const queue = new JobQueue({
+    tempTracker: temp,
     getSettings: () => settings.get(),
     getOfficePath: () => detectOffice(settings.get().engines.officeEnginePath),
     trash: (p) => shell.trashItem(p),
@@ -243,9 +247,11 @@ async function main(): Promise<void> {
   };
 
   let source: HookSource = inertSource;
+  let hooksStarted = false;
   if (process.platform === 'win32') {
     try {
       source = createUiohookSource();
+      hooksStarted = true;
     } catch (error) {
       log.error('global hooks unavailable; the wheel cannot open', error);
       toasts.info('Global input hooks could not start, so the wheel is unavailable.', 'error');
@@ -312,6 +318,7 @@ async function main(): Promise<void> {
     registry,
     pdfHost,
     updater,
+    hooksStarted: () => hooksStarted,
     web: { dir: app.getPath('downloads'), fetch: fetchPublic },
     dispatch: dispatchDeps,
     shortcuts,

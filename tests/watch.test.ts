@@ -20,18 +20,23 @@ function make(rules: WatchRule[]) {
   const notes: string[] = [];
   const handlers: Record<string, (name: string) => void> = {};
   const closed: string[] = [];
+  const errors: Record<string, () => void> = {};
+  let starts = 0;
   const svc = new WatchService({
     convert: (target, file) => converted.push(`${target}:${file}`),
     flags: () => ({ office: false, heic: false }),
     notify: (t) => void notes.push(t),
-    watch: (folder, onName) => {
+    retryMs: 30,
+    watch: (folder, onName, onError) => {
+      starts++;
       handlers[folder] = onName;
+      errors[folder] = onError;
       return { close: () => void closed.push(folder) };
     },
     settleMs: 40,
   });
   svc.apply(rules);
-  return { svc, converted, notes, handlers, closed };
+  return { svc, converted, notes, handlers, closed, errors, starts: () => starts };
 }
 
 const rule = (folder: string, target = 'webp'): WatchRule => ({
@@ -90,5 +95,38 @@ describe('watch folders', () => {
     const { svc, closed } = make([rule(root)]);
     svc.apply([rule(root)]);
     expect(closed).toEqual([]);
+  });
+});
+
+describe('watch folders that go away', () => {
+  it('starts watching again by itself after the watcher stops, without a message', async () => {
+    const { svc, errors, starts, notes } = make([rule(root)]);
+    expect(starts()).toBe(1);
+    errors[root]?.(); // the folder was deleted or the drive was removed
+    await wait(120);
+    expect(starts()).toBe(2);
+    expect(notes).toEqual([]);
+    svc.stop();
+  });
+
+  it('keeps retrying a folder that cannot be watched yet, and stops when asked', async () => {
+    let attempts = 0;
+    const svc = new WatchService({
+      convert: () => undefined,
+      flags: () => ({ office: false, heic: false }),
+      notify: () => undefined,
+      retryMs: 20,
+      watch: () => {
+        attempts++;
+        throw new Error('ENOENT');
+      },
+    });
+    svc.apply([rule(root)]);
+    await wait(150);
+    expect(attempts).toBeGreaterThan(2);
+    svc.stop();
+    const seen = attempts;
+    await wait(100);
+    expect(attempts).toBe(seen);
   });
 });

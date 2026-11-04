@@ -125,3 +125,15 @@ After every row that converts something, confirm the original still exists and i
 | 60 | Drag a PDF, Shift+T, Edit pages: remove one page, turn another, add a watermark, 4 per sheet | A new PDF with those changes. The original is untouched. |
 | 61 | Convert a JSON file to YAML, TOML, CSV; a `.vcf` to CSV; a `.eml` to PDF; a `.kml` to GPX; a `.woff2` to TTF; a PNG to ICO | Each works; the ICO shows in Explorer. |
 
+## 9. Browser drags, updates, robustness
+
+| # | Do this | Expect |
+|---|---|---|
+| 62 | Settings, Engines, Run self-test | Eight checks. All should pass. Any red line says why; send it with Copy diagnostics. |
+| 63 | In Chrome, drag a picture from a web page, hold **Shift+C**, drop on PNG or WebP | The picture is saved in Downloads, then converted there. Repeat with Edge and Firefox, and with **Shift+S** onto a share app. |
+| 64 | Drag a picture whose address needs a login or is on your own network | Nothing is fetched; a toast says it could not be saved. |
+| 65 | Install 1.3.0, then publish a newer release | Within about 6 hours (or Settings, About, Check now) it downloads quietly, installs when idle, and comes back in the tray with a toast "Convert was updated to version…". |
+| 66 | Turn off Update automatically, then Check now | It downloads but waits for Restart and update. |
+| 67 | End Convert from Task Manager during a long conversion, then start it | The `~convert-…` folder beside the file is gone. |
+| 68 | Watch a folder on a USB drive, remove the drive, put it back | Watching resumes by itself within 30 seconds. |
+

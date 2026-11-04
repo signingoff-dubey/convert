@@ -79,6 +79,8 @@ export type JobStatus = 'queued' | 'running' | 'ok' | 'error' | 'cancelled';
 
 export interface JobResult {
   jobId: string;
+  /** The wedge or tool that ran, such as "png" or "merge". */
+  opId: string;
   batchId: string;
   input: string;
   output?: string;

@@ -1,7 +1,9 @@
 import {
   Cog,
   Command,
+  Eye,
   Folders,
+  History,
   HardDrive,
   Info,
   Keyboard,
@@ -24,10 +26,14 @@ import { Features } from './pages/Features';
 import { General } from './pages/General';
 import { Output } from './pages/Output';
 import { Triggers } from './pages/Triggers';
+import { Recent } from './pages/Recent';
+import { Watch } from './pages/Watch';
 import { Wheels } from './pages/Wheels';
 
 type PageId =
   | 'general'
+  | 'recent'
+  | 'watch'
   | 'triggers'
   | 'appearance'
   | 'wheels'
@@ -39,6 +45,8 @@ type PageId =
 
 const PAGES: { id: PageId; label: string; icon: LucideIcon; render: () => ReactNode }[] = [
   { id: 'general', label: 'General', icon: Cog, render: () => <General /> },
+  { id: 'recent', label: 'Recent', icon: History, render: () => <Recent /> },
+  { id: 'watch', label: 'Watch folders', icon: Eye, render: () => <Watch /> },
   { id: 'triggers', label: 'Triggers', icon: Keyboard, render: () => <Triggers /> },
   { id: 'appearance', label: 'Appearance', icon: Palette, render: () => <Appearance /> },
   { id: 'wheels', label: 'Wheels', icon: Command, render: () => <Wheels /> },

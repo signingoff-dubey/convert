@@ -35,8 +35,12 @@ export const WINDOW_ACCESS: Record<PageName, { invoke: readonly string[]; on: re
         'app:reset-first-run',
         'app:first-run-done',
         'app:sample-file',
+        'history:list',
+        'history:open',
+        'history:reveal',
+        'history:clear',
       ],
-      on: ['settings:changed', 'combo:test:event'],
+      on: ['settings:changed', 'combo:test:event', 'history:changed'],
     },
     toast: {
       invoke: [

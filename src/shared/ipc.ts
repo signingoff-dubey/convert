@@ -129,6 +129,23 @@ export const CHANNELS = {
     }),
   },
   'toolwin:close': { request: z.undefined(), response: z.void() },
+  'history:list': {
+    request: z.undefined(),
+    response: z.array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        dir: z.string(),
+        op: z.string(),
+        at: z.number(),
+        count: z.number(),
+        exists: z.boolean(),
+      }),
+    ),
+  },
+  'history:open': { request: z.object({ id: z.string().max(80) }), response: z.void() },
+  'history:reveal': { request: z.object({ id: z.string().max(80) }), response: z.void() },
+  'history:clear': { request: z.undefined(), response: z.void() },
   'pdfrender:res': {
     request: z.object({
       id: z.number().int(),
@@ -203,6 +220,7 @@ export const EVENTS = {
     tool: ToolWindowName,
     paths: z.array(Path),
   }),
+  'history:changed': z.undefined(),
   'pdfrender:req': z.object({
     id: z.number().int(),
     op: z.enum(['open', 'size', 'image', 'text', 'images', 'cleanup', 'close']),

@@ -204,6 +204,7 @@ export class JobQueue extends EventEmitter {
     if (!j || j.status === 'queued' || j.status === 'running') return undefined;
     return {
       jobId: j.id,
+      opId: j.op.id,
       batchId: j.batchId,
       input: j.input,
       output: j.output,

@@ -67,6 +67,8 @@ const windowOf = (app, part) => app.windows().find((w) => w.url().includes(part)
   await settings.getByRole('button', { name: 'Skip' }).click();
   for (const page of [
     'General',
+    'Recent',
+    'Watch folders',
     'Triggers',
     'Appearance',
     'Wheels',
@@ -78,6 +80,10 @@ const windowOf = (app, part) => app.windows().find((w) => w.url().includes(part)
   ]) {
     await settings.getByRole('button', { name: page, exact: true }).click();
     await wait(300);
+    if (process.env.SMOKE_SHOTS && ['Recent', 'Watch folders', 'General'].includes(page))
+      await settings.screenshot({
+        path: join(process.env.SMOKE_SHOTS, `page-${page.replace(/ /g, '-')}.png`),
+      });
     check(`page ${page} renders`, (await settings.locator('main h1').innerText()) === page);
   }
   await app.close();

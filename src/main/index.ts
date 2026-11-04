@@ -10,6 +10,8 @@ import { setPdfBackend } from './engines/pdf';
 import { PdfHost } from './services/pdf-host';
 import { openInBrowser } from './services/browsers';
 import { windowFinder } from './services/share';
+import type { JobResult } from './jobs/types';
+import { WatchService } from './services/watch';
 import { printHtmlToPdf } from './services/print-pdf';
 import { detectOffice } from './engines/binaries';
 import { heicEncoderAvailable } from './engines/heic';
@@ -97,6 +99,26 @@ async function main(): Promise<void> {
     registry,
   );
 
+  const watcher = new WatchService({
+    convert: (target, file) => queue.enqueue({ id: target, kind: 'convert' }, [file]),
+    flags: () => flags,
+    notify: (text, kind) => toasts.info(text, kind),
+  });
+  queue.on('done', (result: JobResult) => {
+    watcher.ignore(result.outputs ?? []);
+    if (result.status !== 'ok' || !result.output || result.note) return;
+    state.addHistory({
+      id: result.jobId,
+      name: path.basename(result.output),
+      output: result.output,
+      input: result.input,
+      op: result.opId,
+      at: Date.now(),
+      count: result.outputs?.length ?? 1,
+    });
+    registry.broadcast(['settings'], 'history:changed', undefined);
+  });
+  watcher.apply(settings.get().watch.rules);
   const win32 = createWin32();
   const dispatchDeps: DispatchDeps = {
     queue,
@@ -222,6 +244,7 @@ async function main(): Promise<void> {
   };
 
   settings.onChange((next) => {
+    watcher.apply(next.watch.rules);
     registry.broadcast(
       ['overlay', 'settings', 'toast', 'toolwin', 'float'],
       'settings:changed',
@@ -294,6 +317,7 @@ async function main(): Promise<void> {
     toastWindow.destroy();
     loader.destroy();
     pdfHost.destroy();
+    watcher.stop();
     float.destroy();
     tray.destroy();
     void shutdownExiftool();

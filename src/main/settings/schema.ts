@@ -54,6 +54,23 @@ export const Settings = z.object({
     cursorLoader: z.boolean().default(true),
     preferredShell: z.enum(['wt', 'powershell', 'cmd']).default('wt'),
   }),
+  watch: z
+    .object({
+      /** Folders whose new files are converted on their own. */
+      rules: z
+        .array(
+          z.object({
+            id: z.string().min(1).max(40),
+            folder: z.string().min(1).max(1024),
+            /** A convert wedge id such as "pdf", "png" or "mp3". */
+            target: z.string().min(1).max(32),
+            enabled: z.boolean().default(true),
+          }),
+        )
+        .max(10)
+        .default([]),
+    })
+    .default({ rules: [] }),
   engines: z.object({ officeEnginePath: z.string().nullable().default(null) }),
   advanced: z.object({ logLevel: z.enum(['error', 'info', 'debug']).default('info') }),
 });
@@ -69,6 +86,7 @@ export function defaultSettings(): Settings {
     appearance: {},
     wheels: {},
     output: {},
+    watch: {},
     engines: {},
     advanced: {},
   });

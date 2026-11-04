@@ -263,3 +263,16 @@ describe('font fallback', () => {
     expect(injectCss('<p>x</p>', 'a{}')).toBe('<style>a{}</style><p>x</p>');
   });
 });
+
+import { ago } from '../src/renderer/settings/pages/Recent';
+
+describe('recent conversions', () => {
+  it('words the age of a result', () => {
+    const now = 1_000_000_000_000;
+    expect(ago(now - 10_000, now)).toBe('just now');
+    expect(ago(now - 5 * 60_000, now)).toBe('5 min ago');
+    expect(ago(now - 3 * 3_600_000, now)).toBe('3 h ago');
+    expect(ago(now - 86_400_000, now)).toBe('yesterday');
+    expect(ago(now - 4 * 86_400_000, now)).toBe('4 days ago');
+  });
+});

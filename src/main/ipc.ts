@@ -290,6 +290,32 @@ export function registerIpc(ctx: IpcContext): void {
     ctx.setFlags({ office: found !== null });
     return found;
   });
+  // ---- recent conversions
+  const entryFor = (id: string) => ctx.state.history.find((h) => h.id === id);
+  handle('history:list', () =>
+    ctx.state.history.map((h) => ({
+      id: h.id,
+      name: h.name,
+      dir: path.dirname(h.output),
+      op: h.op,
+      at: h.at,
+      count: h.count,
+      exists: existsSync(h.output),
+    })),
+  );
+  // Only files Convert itself recorded can be opened, never a path sent by a window.
+  handle('history:open', async ({ id }) => {
+    const e = entryFor(id);
+    if (e && existsSync(e.output)) await shell.openPath(e.output);
+  });
+  handle('history:reveal', ({ id }) => {
+    const e = entryFor(id);
+    if (e && existsSync(e.output)) shell.showItemInFolder(e.output);
+  });
+  handle('history:clear', () => {
+    ctx.state.clearHistory();
+    ctx.registry.broadcast(['settings'], 'history:changed', undefined);
+  });
   handle('app:meta', () => ({
     version: app.getVersion(),
     platform: process.platform,

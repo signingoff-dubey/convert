@@ -9,6 +9,9 @@ const ALLOWED = [
   /^http:\/\/www\.idpf\.org\/2007\/(ops|opf)$/,
   /^http:\/\/purl\.org\/dc\/elements\/1\.1\/$/,
   /^https:\/\/github\.com\/signingoff-dubey\/convert/,
+  // The updater, which asks this repository's releases for a newer version. Nothing else is contacted.
+  /^https:\/\/api\.github\.com\/repos\/\$\{REPO\}\/releases\/latest$/,
+  /^https:\/\/github\.com\/\$\{REPO\}\/releases\/download\/$/,
   /^http:\/\/www\.w3\.org\/2000\/svg$/,
   /^http:\/\/www\.topografix\.com\/GPX\/1\/1$/,
   /^http:\/\/www\.opengis\.net\/kml\/2\.2$/,

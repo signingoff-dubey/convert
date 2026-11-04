@@ -23,7 +23,12 @@ You need [Node.js](https://nodejs.org) 20 or newer (the LTS version is fine). Th
 | `clean.bat` | Deletes build output. `clean.bat all` also deletes `node_modules`. |
 | `remove-startup-entry.bat` | Removes the start-with-Windows entry. |
 
-Convert has **no network code**. The internet is needed only by `setup.bat` and `package.bat`, to download the build tools and bundled converters.
+Convert converts your files **on your own computer** and never uploads them. It has no telemetry. It connects to the internet only:
+- to ask this project's GitHub releases whether a newer version exists, about every six hours, and to download it quietly (Settings → General → Update automatically turns this off);
+- to fetch a picture's address when you drag a picture out of a web browser and drop it on a wheel;
+- when you pick a Share target that opens a website, which your browser opens.
+
+`setup.bat` and `package.bat` also need the internet, to download the build tools and bundled converters.
 
 ## What it does
 

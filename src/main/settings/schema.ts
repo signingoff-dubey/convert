@@ -20,6 +20,8 @@ export const Settings = z.object({
     sendTo: z.boolean().default(false),
     /** Lets a drag that starts on a picture in a web browser open the wheel. */
     dragFromBrowsers: z.boolean().default(true),
+    /** Checks GitHub for a newer release and installs it quietly in the background. */
+    autoUpdate: z.boolean().default(true),
     /** Browser used for the web version of an app when no desktop app is installed. */
     shareBrowser: z.enum(['default', 'chrome', 'edge', 'firefox', 'brave']).default('default'),
     allowedWindowClasses: z.array(z.string()).default(['CabinetWClass', 'Progman', 'WorkerW']),

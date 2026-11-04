@@ -19,7 +19,7 @@ The specs contain decisions on stack, defaults, UX, and scope. Do not re-open th
 ## Hard rules
 
 - **Environment:** Windows 10 22H2 or Windows 11, x64. If you're running on Linux, WSL, or a container, say so in the audit and stop. Hooks and drag-and-drop can't be verified there.
-- **Offline guarantee:** no network calls from the shipped app. No telemetry, no analytics, no update pings in v1. CSP must block all remote origins. Add a test that greps the bundle for `http://` and `https://` outside an allowlist (docs links only).
+- **Offline guarantee:** the shipped app uploads nothing and has no telemetry or analytics. Its only network use is the update check and the fetch of a dragged web picture (docs/DECISIONS.md, DEVIATION-20). CSP must block all remote origins. Add a test that greps the bundle for `http://` and `https://` outside an allowlist (docs links only).
 - **Never delete or move a user's source file** unless the user explicitly chose the Move action or enabled "send original to Recycle Bin" in Settings. Every conversion test must assert that the source file still exists afterwards.
 - **Security:** `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true` in every renderer. All Node access goes through the preload with a typed, allowlisted IPC surface. Validate every IPC payload with zod.
 - **No copied assets.** Don't use Tangerine's name, icons, copy, or screenshots. Draw all icons yourself (SVG) or use an MIT or ISC icon set such as `lucide-react`.

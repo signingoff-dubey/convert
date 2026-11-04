@@ -1,8 +1,37 @@
-import { useEffect, useState } from 'react';
-import { Section } from '../../components/ui';
-import { invoke } from '../../shared/api';
+import { useCallback, useEffect, useState } from 'react';
+import { Button, Section } from '../../components/ui';
+import { invoke, on } from '../../shared/api';
+
+type Update = Awaited<ReturnType<typeof loadUpdate>>;
+const loadUpdate = () => invoke('update:status');
+
+/** One plain sentence for each state of the updater. */
+export function updateText(u: Update): string {
+  switch (u.state) {
+    case 'off':
+      return u.reason ?? 'Updates are off.';
+    case 'checking':
+      return 'Checking for a newer version…';
+    case 'downloading':
+      return `Downloading version ${u.version ?? ''} in the background (${u.percent ?? 0}%)…`;
+    case 'ready':
+      return `Version ${u.version ?? ''} is ready. It installs when Convert is not busy.`;
+    case 'current':
+      return 'You have the latest version.';
+    case 'error':
+      return u.message ?? 'Could not check for updates.';
+    default:
+      return 'Updates are checked in the background.';
+  }
+}
 
 export function About() {
+  const [update, setUpdate] = useState<Update | null>(null);
+  const refresh = useCallback(() => void loadUpdate().then(setUpdate), []);
+  useEffect(() => {
+    refresh();
+    return on('update:changed', refresh);
+  }, [refresh]);
   const [meta, setMeta] = useState<{ version: string; platform: string } | null>(null);
   const [licenses, setLicenses] = useState('');
   useEffect(() => {
@@ -21,6 +50,24 @@ export function About() {
           <p className="mt-2 text-muted">
             Convert is inspired by the drag-and-wheel idea; it contains no third-party app code.
           </p>
+        </div>
+      </Section>
+      <Section title="Updates">
+        <div className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
+          <span className="text-muted">{update ? updateText(update) : ''}</span>
+          <span className="flex shrink-0 gap-2">
+            {update?.state === 'ready' && (
+              <Button variant="primary" onClick={() => void invoke('update:install')}>
+                Restart and update
+              </Button>
+            )}
+            <Button
+              disabled={update?.state === 'checking' || update?.state === 'downloading'}
+              onClick={() => void invoke('update:check')}
+            >
+              Check now
+            </Button>
+          </span>
         </div>
       </Section>
       <Section

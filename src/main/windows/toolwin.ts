@@ -44,6 +44,11 @@ export class ToolWindowManager {
     private readonly prefersDark: () => boolean,
   ) {}
 
+  /** How many tool windows are open. */
+  count(): number {
+    return this.open.size;
+  }
+
   async show(tool: ToolWindowName, paths: string[]): Promise<void> {
     if (this.open.size >= MAX_OPEN) return;
     const size = SIZES[tool];

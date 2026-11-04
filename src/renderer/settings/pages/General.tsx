@@ -40,6 +40,16 @@ export function General() {
           />
         </SettingRow>
         <SettingRow
+          label="Update automatically"
+          description="Checks GitHub for a newer version when you are online, downloads it quietly, and installs it when Convert is not busy. No prompts. Turn off to update by hand."
+        >
+          <Switch
+            label="Update automatically"
+            checked={s.general.autoUpdate}
+            onChange={(v) => void save({ general: { autoUpdate: v } })}
+          />
+        </SettingRow>
+        <SettingRow
           label="Drag pictures from web browsers"
           description="Drag a picture, or a video or PDF link, out of Chrome, Edge, Firefox or Brave onto the wheel. Convert saves it in your Downloads folder first, then converts, compresses or shares it like any other file."
         >

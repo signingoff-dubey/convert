@@ -192,6 +192,11 @@ export class JobQueue extends EventEmitter {
     return this.jobs.get(jobId)?.output;
   }
 
+  /** True while any job is running or waiting. */
+  isBusy(): boolean {
+    return this.active > 0 || this.waiting.length > 0;
+  }
+
   /** Waits until every job in the queue has finished. Used by tests. */
   async idle(): Promise<void> {
     while (this.active > 0 || this.waiting.length > 0) {

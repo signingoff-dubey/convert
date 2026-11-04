@@ -20,6 +20,7 @@ import {
 import { validateDropped, type DispatchDeps } from './dispatch';
 import { probeDuration } from './engines/av';
 import { detectOffice } from './engines/binaries';
+import type { Updater } from './services/updater';
 import { saveWebItems, type WebDropDeps } from './services/webdrop';
 import { pageThumbnails } from './engines/pdf';
 import { allowPreview } from './protocol';
@@ -53,6 +54,7 @@ export interface IpcContext {
   toasts: ToastManager;
   toolwin: ToolWindowManager;
   pdfHost: PdfHost;
+  updater: Updater;
   /** Where dragged web pictures are saved, and how an address is fetched. */
   web: WebDropDeps;
   float: FloatShelf;
@@ -339,6 +341,9 @@ export function registerIpc(ctx: IpcContext): void {
     const e = entryFor(id);
     if (e && existsSync(e.output)) shell.showItemInFolder(e.output);
   });
+  handle('update:status', () => ctx.updater.status());
+  handle('update:check', () => ctx.updater.check(true));
+  handle('update:install', () => ctx.updater.installNow());
   handle('history:clear', () => {
     ctx.state.clearHistory();
     ctx.registry.broadcast(['settings'], 'history:changed', undefined);

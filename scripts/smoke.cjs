@@ -260,6 +260,21 @@ const windowOf = (app, part) => app.windows().find((w) => w.url().includes(part)
   await wait(4000);
   check('--convert converts the files it is given', existsSync(join(dir, 'sendto.webp')));
   await app.close();
+  // The updater says plainly that it is idle in a development run.
+  app = await launch(dir, [], (profile) => {
+    const data = join(profile, '.config', 'Convert');
+    mkdirSync(data, { recursive: true });
+    writeFileSync(join(data, 'state.json'), JSON.stringify({ firstRunDone: true, history: [] }));
+  });
+  win = windowOf(app, 'settings.html');
+  await win.getByRole('button', { name: 'About', exact: true }).click();
+  await wait(800);
+  check(
+    'About shows the update status',
+    (await win.getByText('Updates are only checked in the installed app.').count()) === 1,
+  );
+  await app.close();
+
   // Recent conversions: a history entry with a picture result shows a thumbnail and can be opened.
   app = await launch(dir, [], (profile) => {
     const data = join(profile, '.config', 'Convert');

@@ -152,6 +152,19 @@ export const CHANNELS = {
     }),
   },
   'toolwin:close': { request: z.undefined(), response: z.void() },
+  'update:status': {
+    request: z.undefined(),
+    response: z.object({
+      state: z.enum(['off', 'idle', 'checking', 'current', 'downloading', 'ready', 'error']),
+      version: z.string().optional(),
+      percent: z.number().optional(),
+      message: z.string().optional(),
+      reason: z.string().optional(),
+      checkedAt: z.number().optional(),
+    }),
+  },
+  'update:check': { request: z.undefined(), response: z.void() },
+  'update:install': { request: z.undefined(), response: z.void() },
   'history:list': {
     request: z.undefined(),
     response: z.array(
@@ -246,6 +259,7 @@ export const EVENTS = {
     paths: z.array(Path),
   }),
   'history:changed': z.undefined(),
+  'update:changed': z.undefined(),
   'pdfrender:req': z.object({
     id: z.number().int(),
     op: z.enum(['open', 'size', 'image', 'text', 'images', 'cleanup', 'close']),

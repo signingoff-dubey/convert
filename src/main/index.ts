@@ -1,4 +1,8 @@
+import { spawn } from 'node:child_process';
+import { createWriteStream } from 'node:fs';
 import path from 'node:path';
+import { Readable, Transform } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { app, clipboard, dialog, globalShortcut, ipcMain, nativeTheme, net, shell } from 'electron';
 import { registerPreviewScheme, installPreviewHandler } from './protocol';
 import { ToolWindowName } from '../shared/ipc';
@@ -14,6 +18,7 @@ import { applySendTo } from './services/sendto';
 import { windowFinder } from './services/share';
 import type { JobResult } from './jobs/types';
 import { MAX_WEB_BYTES, type WebFetchResult } from './services/webdrop';
+import { REPO, Updater } from './services/updater';
 import { WatchService } from './services/watch';
 import { printHtmlToPdf } from './services/print-pdf';
 import { detectOffice } from './engines/binaries';
@@ -46,6 +51,32 @@ registerPreviewScheme();
 app.setName('Convert');
 
 const log = logger('main');
+
+/** Downloads a release file to disk, reporting progress, giving up after 30 minutes. */
+async function downloadTo(
+  url: string,
+  dest: string,
+  onProgress: (fraction: number) => void,
+): Promise<void> {
+  const res = await net.fetch(url, {
+    redirect: 'follow',
+    signal: AbortSignal.timeout(30 * 60_000),
+  });
+  if (!res.ok || !res.body) throw new Error(`download failed (${res.status})`);
+  const host = new URL(res.url).hostname;
+  if (!/(^|\.)(github\.com|githubusercontent\.com)$/.test(host))
+    throw new Error(`unexpected download host ${host}`);
+  const total = Number(res.headers.get('content-length')) || 0;
+  let seen = 0;
+  const counter = new Transform({
+    transform(chunk: Buffer, _enc, done) {
+      seen += chunk.length;
+      if (total > 0) onProgress(Math.min(1, seen / total));
+      done(null, chunk);
+    },
+  });
+  await pipeline(Readable.fromWeb(res.body as never), counter, createWriteStream(dest));
+}
 
 /** Fetches a dragged picture's address, giving up after 30 seconds or 150 MB. Used only when the user drops one. */
 async function fetchPublic(url: string): Promise<WebFetchResult> {
@@ -150,6 +181,34 @@ async function main(): Promise<void> {
     registry.broadcast(['settings'], 'history:changed', undefined);
   });
   watcher.apply(settings.get().watch.rules);
+  const updater = new Updater({
+    current: app.getVersion(),
+    dir: path.join(userData, 'updates'),
+    available: () =>
+      !app.isPackaged
+        ? { ok: false, reason: 'Updates are only checked in the installed app.' }
+        : process.platform !== 'win32'
+          ? { ok: false, reason: 'Updates are only available on Windows.' }
+          : { ok: true },
+    autoInstall: () => settings.get().general.autoUpdate,
+    fetchRelease: async () => {
+      const res = await net.fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
+        headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Convert' },
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (!res.ok) throw new Error(`GitHub answered ${res.status}`);
+      return res.json();
+    },
+    download: downloadTo,
+    isIdle: () => !queue.isBusy() && toolwin.count() === 0,
+    install: (file) => {
+      // The installer finishes the job after this app has quit, then starts the new version hidden in the tray.
+      spawn(file, ['--updated', '/S', '--force-run'], { detached: true, stdio: 'ignore' }).unref();
+      app.quit();
+    },
+    onState: () => registry.broadcast(['settings'], 'update:changed', undefined),
+  });
+  updater.start();
   const win32 = createWin32();
   const dispatchDeps: DispatchDeps = {
     queue,
@@ -252,6 +311,7 @@ async function main(): Promise<void> {
     state,
     registry,
     pdfHost,
+    updater,
     web: { dir: app.getPath('downloads'), fetch: fetchPublic },
     dispatch: dispatchDeps,
     shortcuts,
@@ -334,7 +394,10 @@ async function main(): Promise<void> {
   });
   const startedWithRequest = runCli(process.argv);
 
-  const hidden = process.argv.includes('--hidden');
+  // The installer starts the new version with --updated: stay in the tray and say so, instead of opening a window.
+  const justUpdated = process.argv.includes('--updated');
+  if (justUpdated) toasts.info(`Convert was updated to version ${app.getVersion()}.`);
+  const hidden = process.argv.includes('--hidden') || justUpdated;
   if (!state.firstRunDone || (!hidden && !startedWithRequest)) await settingsWindow.open();
 
   // Closing the settings window leaves Convert running in the tray, so the shortcuts keep working. With
@@ -363,6 +426,7 @@ async function main(): Promise<void> {
     toastWindow.destroy();
     loader.destroy();
     pdfHost.destroy();
+    updater.stop();
     watcher.stop();
     float.destroy();
     tray.destroy();

@@ -91,6 +91,49 @@ export function toGpx(c: Collection): string {
   return `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="Convert" xmlns="http://www.topografix.com/GPX/1/1">\n${[...wpt, ...trk].join('\n')}\n</gpx>\n`;
 }
 
+const kmlCoords = (pts: number[][]): string =>
+  `<coordinates>${pts.map((p) => `${p[0]},${p[1]}${p[2] !== undefined ? `,${p[2]}` : ''}`).join(' ')}</coordinates>`;
+
+function kmlGeometry(g: NonNullable<Feature['geometry']>): string {
+  const co = g.coordinates as never;
+  switch (g.type) {
+    case 'Point':
+      return `<Point>${kmlCoords([co as number[]])}</Point>`;
+    case 'LineString':
+      return `<LineString>${kmlCoords(co as number[][])}</LineString>`;
+    case 'Polygon': {
+      const [outer, ...holes] = co as number[][][];
+      return `<Polygon><outerBoundaryIs><LinearRing>${kmlCoords(outer ?? [])}</LinearRing></outerBoundaryIs>${holes
+        .map((h) => `<innerBoundaryIs><LinearRing>${kmlCoords(h)}</LinearRing></innerBoundaryIs>`)
+        .join('')}</Polygon>`;
+    }
+    case 'MultiPoint':
+      return `<MultiGeometry>${(co as number[][]).map((p) => kmlGeometry({ type: 'Point', coordinates: p })).join('')}</MultiGeometry>`;
+    case 'MultiLineString':
+      return `<MultiGeometry>${(co as number[][][]).map((l) => kmlGeometry({ type: 'LineString', coordinates: l })).join('')}</MultiGeometry>`;
+    case 'MultiPolygon':
+      return `<MultiGeometry>${(co as number[][][][]).map((p) => kmlGeometry({ type: 'Polygon', coordinates: p })).join('')}</MultiGeometry>`;
+    case 'GeometryCollection':
+      return `<MultiGeometry>${((g.geometries ?? []) as NonNullable<Feature['geometry']>[]).map(kmlGeometry).join('')}</MultiGeometry>`;
+    default:
+      return '';
+  }
+}
+
+/** KML: each feature is a placemark with its name, its other properties as a description, and its shape. */
+export function toKml(c: Collection): string {
+  const marks = c.features
+    .filter((f) => f.geometry)
+    .map((f) => {
+      const { name, ...rest } = (f.properties ?? {}) as Record<string, unknown>;
+      const description = Object.entries(rest)
+        .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : String(v)}`)
+        .join('\n');
+      return `<Placemark>${typeof name === 'string' && name !== '' ? `<name>${esc(name)}</name>` : ''}${description ? `<description>${esc(description)}</description>` : ''}${kmlGeometry(f.geometry as NonNullable<Feature['geometry']>)}</Placemark>`;
+    });
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2"><Document>\n${marks.join('\n')}\n</Document></kml>\n`;
+}
+
 /** A table: one row per feature, its properties, and longitude/latitude for points (the geometry as JSON otherwise). */
 export function toRows(c: Collection): (string | number)[][] {
   const props: string[] = [];
@@ -135,7 +178,6 @@ export const geoEngine: Engine = {
       const Papa = nodeRequire('papaparse') as typeof import('papaparse');
       return writeFile(ctx.tempPath, `﻿${Papa.unparse(toRows(c), { newline: '\r\n' })}`, 'utf8');
     }
-    const tokml = nodeRequire('tokml') as (g: unknown, o?: Record<string, string>) => string;
-    return writeFile(ctx.tempPath, tokml(c, { name: 'name', documentName: 'Convert' }), 'utf8');
+    return writeFile(ctx.tempPath, toKml(c), 'utf8');
   },
 };

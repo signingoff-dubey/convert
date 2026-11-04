@@ -11,6 +11,7 @@ const ALLOWED = [
   /^https:\/\/github\.com\/signingoff-dubey\/convert/,
   /^http:\/\/www\.w3\.org\/2000\/svg$/,
   /^http:\/\/www\.topografix\.com\/GPX\/1\/1$/,
+  /^http:\/\/www\.opengis\.net\/kml\/2\.2$/,
   // Share to apps: addresses handed to the user's own browser when they pick a target. The app never fetches them.
   /^https:\/\/(claude\.ai\/new|chatgpt\.com\/|web\.telegram\.org\/|web\.whatsapp\.com\/|discord\.com\/app|app\.slack\.com\/client|mail\.google\.com\/mail\/\?view=cm&fs=1)$/,
 ];

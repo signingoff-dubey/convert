@@ -69,7 +69,6 @@
     "sharp": "^0.35.5",
     "smol-toml": "^1.9.1",
     "tesseract.js": "^7.0.0",
-    "tokml": "^0.4.0",
     "turndown": "^7.2.4",
     "uiohook-napi": "^1.5.5",
     "yaml": "^2.9.1",

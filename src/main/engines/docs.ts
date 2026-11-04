@@ -14,7 +14,7 @@ import { officeConvert } from './office';
 const DOC_EXTS = new Set(['docx', 'md', 'txt', 'html', 'rtf', 'epub']);
 const TARGETS = new Set(['pdf', 'txt', 'md', 'html', 'docx', 'epub']);
 
-const escapeHtml = (s: string): string =>
+export const escapeHtml = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 export function htmlToText(html: string): string {
@@ -46,7 +46,7 @@ export function mdToText(md: string): string {
   );
 }
 
-function page(title: string, body: string): string {
+export function page(title: string, body: string): string {
   return `<!doctype html>\n<html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
 <style>body{font-family:Inter,'Segoe UI',system-ui,sans-serif;max-width:46rem;margin:2rem auto;padding:0 1rem;line-height:1.6}pre{background:#f4f4f6;padding:.75rem;overflow:auto;white-space:pre-wrap;word-break:break-word}code{background:#f4f4f6;padding:.1em .3em;border-radius:3px}pre code{background:none;padding:0}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:.3rem .6rem}img{max-width:100%}blockquote{border-left:3px solid #ccc;margin-left:0;padding-left:1rem;color:#555}@media print{body{max-width:none;margin:0}h1,h2,h3{break-after:avoid}pre,table,img{break-inside:avoid}}</style>
 </head><body>\n${body}\n</body></html>\n`;

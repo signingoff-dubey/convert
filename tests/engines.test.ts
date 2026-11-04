@@ -1205,3 +1205,139 @@ describe('icons', () => {
     expect(buildIco([]).length).toBe(6);
   });
 });
+
+describe('fonts, email, maps, contacts and calendars', () => {
+  const put = (name: string, text: string | Buffer) => {
+    const p = join(dir, name);
+    writeFileSync(p, text);
+    return p;
+  };
+  const text = async (id: string, src: string) =>
+    readFileSync(ok((await run(id, 'convert', [src]))[0] as JobResult), 'utf8');
+
+  it('converts a font between WOFF2, TTF and WOFF and keeps it a font', async () => {
+    const woff2 = join(
+      process.cwd(),
+      'node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2',
+    );
+    const ttf = ok((await run('ttf', 'convert', [woff2]))[0] as JobResult);
+    expect(magic(ttf, 4).toString('hex')).toBe('00010000');
+    const woff = ok((await run('woff', 'convert', [ttf]))[0] as JobResult);
+    expect(magic(woff, 4).toString()).toBe('wOFF');
+    const again = ok((await run('woff2', 'convert', [woff]))[0] as JobResult);
+    expect(magic(again, 4).toString()).toBe('wOF2');
+    const junk = (
+      await run('ttf', 'convert', [put('junk.woff', 'not a font at all')])
+    )[0] as JobResult;
+    expect(junk.status).toBe('error');
+  }, 60_000);
+
+  it('turns an email into text and HTML, listing attachments it leaves out', async () => {
+    const eml = put(
+      'hello.eml',
+      [
+        'From: Ada <ada@example.com>',
+        'To: Lin <lin@example.com>',
+        'Subject: Lunch =?UTF-8?B?w6k=?=',
+        'Date: Tue, 01 Jul 2025 10:00:00 +0000',
+        'MIME-Version: 1.0',
+        'Content-Type: multipart/mixed; boundary="b"',
+        '',
+        '--b',
+        'Content-Type: text/plain; charset=utf-8',
+        '',
+        'See you at noon.',
+        '--b',
+        'Content-Type: application/pdf; name="menu.pdf"',
+        'Content-Disposition: attachment; filename="menu.pdf"',
+        'Content-Transfer-Encoding: base64',
+        '',
+        'JVBERi0xLjQK',
+        '--b--',
+        '',
+      ].join('\r\n'),
+    );
+    const r = (await run('txt', 'convert', [eml]))[0] as JobResult;
+    const body = readFileSync(ok(r), 'utf8');
+    expect(body).toContain('From: Ada <ada@example.com>');
+    expect(body).toContain('Subject: Lunch é');
+    expect(body).toContain('See you at noon.');
+    expect(r.warning).toBe('1 attachment was not converted.');
+    expect(await text('html', eml)).toContain('See you at noon.');
+  });
+
+  it('converts maps between GeoJSON, KML, GPX and a CSV table', async () => {
+    const geo = put(
+      'places.geojson',
+      JSON.stringify({
+        type: 'FeatureCollection',
+        features: [
+          {
+            type: 'Feature',
+            properties: { name: 'Cafe' },
+            geometry: { type: 'Point', coordinates: [4.9, 52.37] },
+          },
+          {
+            type: 'Feature',
+            properties: { name: 'Walk' },
+            geometry: {
+              type: 'LineString',
+              coordinates: [
+                [4.9, 52.37],
+                [4.91, 52.38],
+              ],
+            },
+          },
+        ],
+      }),
+    );
+    const kml = await text('kml', geo);
+    expect(kml).toContain('<name>Cafe</name>');
+    const back = JSON.parse(await text('geojson', put('places.kml', kml)));
+    expect(back.features).toHaveLength(2);
+    expect(back.features[0].geometry.coordinates.slice(0, 2)).toEqual([4.9, 52.37]);
+    const gpx = await text('gpx', geo);
+    expect(gpx).toContain('<wpt lat="52.37" lon="4.9">');
+    expect(gpx).toContain('<trkpt lat="52.38" lon="4.91">');
+    const csv = (await text('csv', geo)).replace(/^﻿/, '');
+    expect(csv.split('\r\n')[0]).toBe('name,longitude,latitude,geometry');
+    expect(csv).toContain('Cafe,4.9,52.37,');
+    const empty = (
+      await run('kml', 'convert', [
+        put('none.geojson', '{"type":"FeatureCollection","features":[]}'),
+      ])
+    )[0] as JobResult;
+    expect(empty.status).toBe('error');
+  });
+
+  it('reads contacts and calendar events into any data format', async () => {
+    const vcf = put(
+      'people.vcf',
+      'BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Ada Lovelace\r\nORG:Analytical;Engines\r\nTEL;TYPE=CELL:+1 555 0100\r\nTEL;TYPE=WORK:+1 555 0101\r\nEMAIL:ada@example.com\r\nNOTE:Likes\\, maths\\nand music\r\nEND:VCARD\r\nBEGIN:VCARD\r\nN:Turing;Alan;;;\r\nEND:VCARD\r\n',
+    );
+    const rows = JSON.parse(await text('json', vcf));
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({
+      name: 'Ada Lovelace',
+      organisation: 'Analytical, Engines',
+      phones: '+1 555 0100; +1 555 0101',
+      emails: 'ada@example.com',
+      note: 'Likes, maths\nand music',
+    });
+    expect(rows[1].name).toBe('Alan Turing');
+    expect((await text('csv', vcf)).replace(/^﻿/, '')).toContain('name,organisation,title,phones');
+    const ics = put(
+      'plan.ics',
+      'BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nSUMMARY:Stand-up\r\nDTSTART:20250102T090000Z\r\nDTEND:20250102T091500Z\r\nLOCATION:Room 4\r\nDESCRIPTION:Daily\\, quick\r\n continued\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n',
+    );
+    const events = JSON.parse(await text('json', ics));
+    expect(events[0]).toMatchObject({
+      summary: 'Stand-up',
+      start: '2025-01-02T09:00:00Z',
+      end: '2025-01-02T09:15:00Z',
+      location: 'Room 4',
+      description: 'Daily, quickcontinued',
+    });
+    expect((await run('json', 'convert', [put('empty.ics', 'nothing')]))[0]?.status).toBe('error');
+  });
+});

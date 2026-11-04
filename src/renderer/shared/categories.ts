@@ -4,6 +4,9 @@ import {
   BookOpen,
   Captions,
   Braces,
+  MapPin,
+  Mail,
+  Type,
   FileText,
   Film,
   Image,
@@ -34,6 +37,9 @@ export const CATEGORIES: readonly CategoryInfo[] = [
   { id: 'epub', label: 'EPUB', icon: BookOpen, toolsTitle: 'EPUB tools' },
   { id: 'subtitles', label: 'Subtitles', icon: Captions, toolsTitle: 'Subtitle tools' },
   { id: 'data', label: 'Data', icon: Braces, toolsTitle: 'Data tools' },
+  { id: 'font', label: 'Fonts', icon: Type, toolsTitle: 'Font tools' },
+  { id: 'email', label: 'Email', icon: Mail, toolsTitle: 'Email tools' },
+  { id: 'geo', label: 'Maps', icon: MapPin, toolsTitle: 'Map tools' },
   { id: 'archive', label: 'Archives', icon: Archive, toolsTitle: 'Archive tools' },
 ];
 
@@ -49,6 +55,9 @@ export const SAMPLE_FILE: Record<Category, string> = {
   epub: 'sample.epub',
   subtitles: 'sample.srt',
   data: 'sample.json',
+  font: 'sample.ttf',
+  email: 'sample.eml',
+  geo: 'sample.geojson',
   archive: 'sample.zip',
 };
 
@@ -62,7 +71,18 @@ export const FORMAT_TABLE: readonly { category: string; formats: string[]; note?
   {
     category: 'Data',
     formats: ['JSON', 'YAML', 'TOML', 'XML', 'CSV', 'XLSX'],
-    note: 'Into each other. CSV and XLSX need a list of records. Spreadsheets also export to JSON.',
+    note: 'Into each other. CSV and XLSX need a list of records. Contacts (VCF) and calendars (ICS) can be read into any of them. Spreadsheets also export to JSON.',
+  },
+  { category: 'Fonts', formats: ['TTF', 'OTF', 'WOFF', 'WOFF2'], note: 'To TTF, WOFF or WOFF2.' },
+  {
+    category: 'Email',
+    formats: ['EML'],
+    note: 'To PDF, HTML or TXT. Attachments are not converted.',
+  },
+  {
+    category: 'Maps',
+    formats: ['GeoJSON', 'KML', 'GPX'],
+    note: 'Into each other and CSV (points as longitude and latitude).',
   },
   { category: 'Audio', formats: ['MP3', 'M4A', 'WAV', 'FLAC', 'OGG', 'Opus', 'AIFF', 'WMA'] },
   {

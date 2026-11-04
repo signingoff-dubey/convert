@@ -11,6 +11,9 @@ export type Category =
   | 'epub'
   | 'subtitles'
   | 'data'
+  | 'font'
+  | 'email'
+  | 'geo'
   | 'archive';
 
 export type WheelId = 'convert' | 'tools' | 'actions' | 'share';
@@ -64,7 +67,10 @@ export const EXTENSIONS: Record<Category, readonly string[]> = {
   spreadsheet: ['xlsx', 'xls', 'ods', 'csv', 'tsv'],
   epub: ['epub'],
   subtitles: ['srt', 'vtt', 'ass', 'ssa', 'lrc', 'sbv'],
-  data: ['json', 'yaml', 'yml', 'toml', 'xml'],
+  data: ['json', 'yaml', 'yml', 'toml', 'xml', 'vcf', 'ics'],
+  font: ['ttf', 'otf', 'woff', 'woff2'],
+  email: ['eml'],
+  geo: ['geojson', 'kml', 'gpx'],
   archive: ['zip', 'tar', 'gz', 'tgz', 'rar'],
 };
 
@@ -164,6 +170,9 @@ export const CONVERT_TARGETS: Record<Category, readonly Target[]> = {
     t('csv', 'CSV'),
     t('xlsx', 'XLSX'),
   ],
+  font: [t('ttf', 'TTF'), t('woff', 'WOFF'), t('woff2', 'WOFF2')],
+  email: [t('pdf', 'PDF'), t('html', 'HTML'), t('txt', 'TXT')],
+  geo: [t('geojson', 'GeoJSON'), t('kml', 'KML'), t('gpx', 'GPX'), t('csv', 'CSV')],
   archive: [
     { id: 'extract-here', ext: null, label: 'Extract here' },
     t('zip', 'ZIP'),
@@ -588,6 +597,16 @@ const MIME_EXT: Record<string, string> = {
   'text/yaml': 'yaml',
   'application/toml': 'toml',
   'application/xml': 'xml',
+  'text/vcard': 'vcf',
+  'text/calendar': 'ics',
+  'message/rfc822': 'eml',
+  'font/ttf': 'ttf',
+  'font/otf': 'otf',
+  'font/woff': 'woff',
+  'font/woff2': 'woff2',
+  'application/geo+json': 'geojson',
+  'application/vnd.google-earth.kml+xml': 'kml',
+  'application/gpx+xml': 'gpx',
   'text/xml': 'xml',
   'application/vnd.ms-excel': 'xls',
   'text/tab-separated-values': 'tsv',

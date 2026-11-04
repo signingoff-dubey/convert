@@ -3,7 +3,7 @@ import { extensionOf } from '../../shared/formats';
 import { JobError, type Engine, type Operation } from '../jobs/types';
 import { nodeRequire } from './req';
 
-const DATA_EXTS = new Set(['json', 'yaml', 'toml', 'xml']);
+const DATA_EXTS = new Set(['json', 'yaml', 'toml', 'xml', 'vcf', 'ics']);
 const TARGETS = new Set(['json', 'yaml', 'toml', 'xml', 'csv', 'xlsx']);
 const MAX_BYTES = 100 * 1024 * 1024;
 
@@ -54,12 +54,98 @@ function stripNulls(value: Json, dropped: { n: number }): Json {
   return value;
 }
 
+/** Joins folded lines (a line that starts with a space continues the one before it). */
+function unfold(text: string): string[] {
+  return text
+    .replace(/\r\n?/g, '\n')
+    .replace(/\n[ \t]/g, '')
+    .split('\n');
+}
+
+const unescapeText = (v: string): string => v.replace(/\\n/gi, '\n').replace(/\\([,;\\])/g, '$1');
+
+/** One block per BEGIN:<kind> ... END:<kind>, each as a list of [NAME, value] (parameters are dropped). */
+function blocks(text: string, kind: string): [string, string][][] {
+  const out: [string, string][][] = [];
+  let current: [string, string][] | null = null;
+  for (const line of unfold(text)) {
+    const upper = line.toUpperCase();
+    if (upper === `BEGIN:${kind}`) current = [];
+    else if (upper === `END:${kind}`) {
+      if (current) out.push(current);
+      current = null;
+    } else if (current) {
+      const colon = line.indexOf(':');
+      if (colon > 0)
+        current.push([
+          (line.slice(0, colon).split(';')[0] ?? '').toUpperCase(),
+          line.slice(colon + 1),
+        ]);
+    }
+  }
+  return out;
+}
+
+/** vCard contacts as records: name, organisation, phones, emails and so on. */
+export function parseVcf(text: string): Row[] {
+  const all = (b: [string, string][], k: string): string =>
+    b
+      .filter(([n]) => n === k)
+      .map(([, v]) => unescapeText(v))
+      .join('; ');
+  const records = blocks(text, 'VCARD').map((b) => ({
+    name: all(b, 'FN') || all(b, 'N').split(';').filter(Boolean).reverse().join(' '),
+    organisation: all(b, 'ORG').replace(/;/g, ', '),
+    title: all(b, 'TITLE'),
+    phones: all(b, 'TEL'),
+    emails: all(b, 'EMAIL'),
+    address: all(b, 'ADR')
+      .replace(/;+/g, ', ')
+      .replace(/^, |, $/g, ''),
+    website: all(b, 'URL'),
+    birthday: all(b, 'BDAY'),
+    note: all(b, 'NOTE'),
+  }));
+  if (records.length === 0) throw new JobError('E_CORRUPT_INPUT', 'no contacts found');
+  return records;
+}
+
+/** 20250102T030000Z or 20250102 as readable ISO text. */
+function icsDate(v: string): string {
+  const m = /^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})(Z?))?$/.exec(v.trim());
+  if (!m) return v;
+  return m[4]
+    ? `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}${m[7] ?? ''}`
+    : `${m[1]}-${m[2]}-${m[3]}`;
+}
+
+/** iCalendar events as records. */
+export function parseIcs(text: string): Row[] {
+  const one = (b: [string, string][], k: string): string =>
+    unescapeText(b.find(([n]) => n === k)?.[1] ?? '');
+  const records = blocks(text, 'VEVENT').map((b) => ({
+    summary: one(b, 'SUMMARY'),
+    start: icsDate(one(b, 'DTSTART')),
+    end: icsDate(one(b, 'DTEND')),
+    location: one(b, 'LOCATION'),
+    description: one(b, 'DESCRIPTION'),
+    repeats: one(b, 'RRULE'),
+    organiser: one(b, 'ORGANIZER').replace(/^mailto:/i, ''),
+  }));
+  if (records.length === 0) throw new JobError('E_CORRUPT_INPUT', 'no events found');
+  return records;
+}
+
 async function parse(input: string, ext: string): Promise<Json> {
   if ((await stat(input)).size > MAX_BYTES)
     throw new JobError('E_UNSUPPORTED', 'the file is over 100 MB');
   const text = (await readFile(input, 'utf8')).replace(/^﻿/, '');
   try {
     switch (ext) {
+      case 'vcf':
+        return parseVcf(text);
+      case 'ics':
+        return parseIcs(text);
       case 'json':
         return JSON.parse(text) as Json;
       case 'yaml': {

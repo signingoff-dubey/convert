@@ -9,6 +9,9 @@ import { subsEngine } from '../engines/subs';
 import { mediaKindOf } from '../engines/av-args';
 import { officeEngine } from '../engines/office-engine';
 import { dataEngine } from '../engines/data';
+import { emailEngine } from '../engines/email';
+import { fontEngine } from '../engines/font-convert';
+import { geoEngine } from '../engines/geo';
 import { ocrEngine } from '../engines/ocr';
 import { protectEngine } from '../engines/protect';
 import { JobError, type Engine, type Operation, type OutputKind } from './types';
@@ -25,6 +28,9 @@ export const ENGINES: readonly Engine[] = [
   ocrEngine,
   protectEngine,
   dataEngine,
+  fontEngine,
+  emailEngine,
+  geoEngine,
 ];
 
 /** Operations that consume the whole selection as one job instead of one job per file. */

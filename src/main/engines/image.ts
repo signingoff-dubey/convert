@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, resolve } from 'node:path';
 import { PDFDocument } from 'pdf-lib';
 import sharp, { type OverlayOptions, type ResizeOptions, type Sharp } from 'sharp';
+import { buildIco, iconSizes } from './ico';
 import { DEFAULT_BG, removeBackground } from '../../shared/bg-remove';
 import { extensionOf } from '../../shared/formats';
 import {
@@ -29,7 +30,7 @@ import { encodeHeic } from './heic';
 import { stripMetadata, writeMetadata } from './meta';
 import { nodeRequire } from './req';
 
-const OUTPUTS = new Set(['png', 'jpg', 'webp', 'avif', 'tiff', 'bmp', 'pdf', 'heic']);
+const OUTPUTS = new Set(['png', 'jpg', 'webp', 'avif', 'tiff', 'bmp', 'ico', 'pdf', 'heic']);
 const TOOLS = new Set([
   'compress',
   'resize',
@@ -120,6 +121,21 @@ async function encode(
         .raw()
         .toBuffer({ resolveWithObject: true });
       await writeFile(outPath, encodeBmp(data, info.width, info.height));
+      return;
+    }
+    case 'ico': {
+      // Square pictures at every standard size up to the picture's own, transparent where the shape does not fill.
+      const base = await pipeline.ensureAlpha().png().toBuffer();
+      const meta = await sharp(base).metadata();
+      const pictures = [];
+      for (const size of iconSizes(meta.width ?? 0, meta.height ?? 0)) {
+        const png = await sharp(base)
+          .resize(size, size, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+          .png()
+          .toBuffer();
+        pictures.push({ size, png });
+      }
+      await writeFile(outPath, buildIco(pictures));
       return;
     }
     default:

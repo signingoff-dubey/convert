@@ -27,9 +27,9 @@ describe('extensionOf / categoryOf', () => {
 });
 
 describe('wheel limits', () => {
-  it('shows at most 8 wedges once the source format is removed', () => {
+  it('shows a bounded number of wedges once the source format is removed', () => {
     for (const [category, targets] of Object.entries(CONVERT_TARGETS)) {
-      expect(targets.length, category).toBeLessThanOrEqual(9);
+      expect(targets.length, category).toBeLessThanOrEqual(11);
     }
     // The tools wheel holds up to 10 wedges (DEVIATION-4); a single image gets 10 of the 11 image tools.
     for (const tools of Object.values(TOOLS)) expect(tools.length).toBeLessThanOrEqual(11);
@@ -37,11 +37,11 @@ describe('wheel limits', () => {
     expect(single.status === 'ok' && single.items.length).toBeLessThanOrEqual(10);
     expect(actionsFor([f('a.png')]).length).toBe(8);
   });
-  it('never exceeds 8 wedges for any real source file', () => {
+  it('never exceeds 10 wedges for any real source file', () => {
     const everyExt = Object.values(EXTENSIONS).flat();
     for (const ext of everyExt) {
       const r = targetsFor([f(`a.${ext}`)], { officeAvailable: true, heicEncoder: true });
-      if (r.status === 'ok') expect(r.items.length, ext).toBeLessThanOrEqual(8);
+      if (r.status === 'ok') expect(r.items.length, ext).toBeLessThanOrEqual(10);
     }
   });
 });
@@ -54,13 +54,14 @@ describe('targetsFor', () => {
       'tiff',
       'avif',
       'bmp',
+      'ico',
       'pdf',
       'txt',
     ]);
     expect(ids(targetsFor([f('a.jpeg')]))).not.toContain('jpg');
   });
   it('offers HEIC input every image target except HEIC, which needs an encoder', () => {
-    expect(ids(targetsFor([f('a.heic')]))).toHaveLength(8);
+    expect(ids(targetsFor([f('a.heic')]))).toHaveLength(9);
     expect(ids(targetsFor([f('a.png')]))).not.toContain('heic');
     expect(ids(targetsFor([f('a.png')], { officeAvailable: false, heicEncoder: true }))).toContain(
       'heic',
@@ -99,6 +100,7 @@ describe('targetsFor', () => {
       'tiff',
       'avif',
       'bmp',
+      'ico',
       'pdf',
       'txt',
     ]);

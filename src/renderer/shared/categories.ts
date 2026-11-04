@@ -3,6 +3,7 @@ import {
   AudioLines,
   BookOpen,
   Captions,
+  Braces,
   FileText,
   Film,
   Image,
@@ -32,6 +33,7 @@ export const CATEGORIES: readonly CategoryInfo[] = [
   { id: 'spreadsheet', label: 'Spreadsheets', icon: Table2, toolsTitle: 'Spreadsheet tools' },
   { id: 'epub', label: 'EPUB', icon: BookOpen, toolsTitle: 'EPUB tools' },
   { id: 'subtitles', label: 'Subtitles', icon: Captions, toolsTitle: 'Subtitle tools' },
+  { id: 'data', label: 'Data', icon: Braces, toolsTitle: 'Data tools' },
   { id: 'archive', label: 'Archives', icon: Archive, toolsTitle: 'Archive tools' },
 ];
 
@@ -46,6 +48,7 @@ export const SAMPLE_FILE: Record<Category, string> = {
   spreadsheet: 'sample.xlsx',
   epub: 'sample.epub',
   subtitles: 'sample.srt',
+  data: 'sample.json',
   archive: 'sample.zip',
 };
 
@@ -55,6 +58,11 @@ export const FORMAT_TABLE: readonly { category: string; formats: string[]; note?
     category: 'Images',
     formats: ['JPG', 'PNG', 'WebP', 'HEIC', 'TIFF', 'AVIF', 'BMP'],
     note: 'PDF export. SVG input only. HEIC output needs the Windows HEIF extension.',
+  },
+  {
+    category: 'Data',
+    formats: ['JSON', 'YAML', 'TOML', 'XML', 'CSV', 'XLSX'],
+    note: 'Into each other. CSV and XLSX need a list of records. Spreadsheets also export to JSON.',
   },
   { category: 'Audio', formats: ['MP3', 'M4A', 'WAV', 'FLAC', 'OGG', 'Opus', 'AIFF', 'WMA'] },
   {
@@ -87,7 +95,11 @@ export const FORMAT_TABLE: readonly { category: string; formats: string[]; note?
     formats: ['EPUB', 'DOCX', 'MD', 'TXT', 'HTML', 'PDF'],
     note: 'Read and write. PDF export needs LibreOffice.',
   },
-  { category: 'Subtitles', formats: ['SRT', 'VTT'], note: 'TXT export.' },
+  {
+    category: 'Subtitles',
+    formats: ['SRT', 'VTT', 'ASS', 'LRC', 'SBV'],
+    note: 'Into each other and TXT. SBV is input only. UTF-8 and UTF-16 files.',
+  },
   { category: 'Archives', formats: ['ZIP', 'TAR', 'GZIP'], note: 'RAR input only.' },
 ];
 

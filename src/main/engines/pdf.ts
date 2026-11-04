@@ -1,7 +1,7 @@
 import { nodeRequire } from './req';
 import { readFile, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
-import { PDFDocument } from 'pdf-lib';
+import { degrees, PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { extensionOf } from '../../shared/formats';
 import { pageFileName } from '../jobs/naming';
 import {
@@ -422,15 +422,92 @@ async function split(input: string, op: Operation, ctx: RunContext): Promise<voi
   }
 }
 
+export interface PagePick {
+  /** Zero-based page of the source. */
+  index: number;
+  /** Extra clockwise turn in degrees. */
+  rotate: number;
+}
+
+/** Parses "3,1r90,2" (pages in the order wanted, `r90`, `r180` or `r270` turns one) into picks. */
+export function parsePageOrder(spec: string, count: number): PagePick[] {
+  const picks = spec
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean)
+    .map((token) => {
+      const m = /^(\d+)(?:r(90|180|270))?$/.exec(token);
+      const page = m ? Number(m[1]) : 0;
+      if (!m || page < 1 || page > count)
+        throw new JobError('E_UNSUPPORTED', `page "${token}" is not in this PDF`);
+      return { index: page - 1, rotate: Number(m[2] ?? 0) };
+    });
+  if (picks.length === 0) throw new JobError('E_UNSUPPORTED', 'no pages were kept');
+  return picks;
+}
+
+/** The characters Helvetica can draw; anything else would stop the stamp, so it becomes "?". */
+export function latin(text: string): string {
+  return text.replace(/[^\x20-\x7E\u00A1-\u00FF]/g, '?').slice(0, 80);
+}
+
+/** Keeps, reorders and turns pages, and can stamp a watermark and page numbers. Writes a new PDF. */
 async function deletePages(input: string, op: Operation, ctx: RunContext): Promise<void> {
   const src = await loadPdfLib(input);
-  const keep = [
-    ...new Set(parsePageRanges(String(op.params?.keep ?? ''), src.getPageCount()).flat()),
-  ].sort((a, b) => a - b);
-  if (keep.length === src.getPageCount())
-    throw new JobError('E_UNSUPPORTED', 'every page is kept, so there is nothing to delete');
+  const count = src.getPageCount();
+  const params = op.params ?? {};
+  const picks =
+    typeof params.order === 'string' && params.order !== ''
+      ? parsePageOrder(params.order, count)
+      : [...new Set(parsePageRanges(String(params.keep ?? ''), count).flat())]
+          .sort((a, b) => a - b)
+          .map((index) => ({ index, rotate: 0 }));
+  const watermark = latin(String(params.watermark ?? '')).trim();
+  const numbers = params.pageNumbers === true || params.pageNumbers === 'true';
+  const unchanged =
+    picks.length === count && picks.every((p, i) => p.index === i && p.rotate === 0);
+  if (unchanged && !watermark && !numbers)
+    throw new JobError('E_UNSUPPORTED', 'nothing was changed: every page is kept as it was');
   const out = await PDFDocument.create();
-  for (const page of await out.copyPages(src, keep)) out.addPage(page);
+  const copied = await out.copyPages(
+    src,
+    picks.map((p) => p.index),
+  );
+  const font = await out.embedFont(StandardFonts.Helvetica);
+  copied.forEach((page, i) => {
+    const { width, height } = page.getSize();
+    if (watermark) {
+      // Along the diagonal of the page, centred, light enough to read the text beneath.
+      const size = Math.max(
+        14,
+        Math.min(96, (Math.min(width, height) * 0.9) / (watermark.length * 0.6 + 1)),
+      );
+      const w = font.widthOfTextAtSize(watermark, size);
+      const a = Math.PI / 4;
+      page.drawText(watermark, {
+        x: width / 2 - (w / 2) * Math.cos(a) + (size / 3) * Math.sin(a),
+        y: height / 2 - (w / 2) * Math.sin(a) - (size / 3) * Math.cos(a),
+        size,
+        font,
+        color: rgb(0.5, 0.5, 0.5),
+        opacity: 0.28,
+        rotate: degrees(45),
+      });
+    }
+    if (numbers) {
+      const label = `${i + 1} / ${copied.length}`;
+      page.drawText(label, {
+        x: width / 2 - font.widthOfTextAtSize(label, 10) / 2,
+        y: 16,
+        size: 10,
+        font,
+        color: rgb(0.3, 0.3, 0.3),
+      });
+    }
+    const turn = picks[i]?.rotate ?? 0;
+    if (turn) page.setRotation(degrees((page.getRotation().angle + turn) % 360));
+    out.addPage(page);
+  });
   out.setTitle(src.getTitle() ?? '');
   out.setAuthor(src.getAuthor() ?? '');
   await writeFile(ctx.tempPath, await out.save());

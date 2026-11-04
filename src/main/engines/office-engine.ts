@@ -15,7 +15,8 @@ export function officeHandles(ext: string, target: string): boolean {
     return ['pdf', 'jpg', 'png'].includes(target) || (ext === 'ppt' && target === 'pptx');
   if (SHEETS_VIA_OFFICE_IN.has(ext)) {
     return (
-      ['xlsx', 'csv', 'tsv', 'txt', 'pdf'].includes(target) || (ext === 'xls' && target === 'ods')
+      ['xlsx', 'csv', 'tsv', 'txt', 'json', 'pdf'].includes(target) ||
+      (ext === 'xls' && target === 'ods')
     );
   }
   if (SHEETS_PLAIN.has(ext)) return target === 'ods' || target === 'pdf';
@@ -37,7 +38,10 @@ export const officeEngine: Engine = {
       // Slides go to PDF first, then every page is rendered at 300 DPI into the output folder.
       return renderPages(await convert(input, 'pdf'), op.id, ctx);
     }
-    if (SHEETS_VIA_OFFICE_IN.has(ext) && (op.id === 'csv' || op.id === 'tsv' || op.id === 'txt')) {
+    if (
+      SHEETS_VIA_OFFICE_IN.has(ext) &&
+      (op.id === 'csv' || op.id === 'tsv' || op.id === 'txt' || op.id === 'json')
+    ) {
       // XLS and ODS become XLSX first so CSV and TSV reuse the spreadsheet engine's parsing and quoting.
       return sheetsEngine.run(op, await convert(input, 'xlsx'), ctx);
     }

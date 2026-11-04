@@ -17,7 +17,7 @@ export const TITLES: Record<ToolWindowName, string> = {
   annotate: 'Annotate photo',
   collage: 'Make a collage',
   frames: 'Extract frames',
-  'delete-pages': 'Delete pages',
+  'delete-pages': 'Edit pages',
   upscale: 'Upscale images',
   'remove-bg': 'Remove background',
   password: 'Password',

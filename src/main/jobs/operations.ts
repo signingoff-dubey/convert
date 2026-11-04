@@ -8,6 +8,7 @@ import { sheetsEngine } from '../engines/sheets';
 import { subsEngine } from '../engines/subs';
 import { mediaKindOf } from '../engines/av-args';
 import { officeEngine } from '../engines/office-engine';
+import { dataEngine } from '../engines/data';
 import { ocrEngine } from '../engines/ocr';
 import { protectEngine } from '../engines/protect';
 import { JobError, type Engine, type Operation, type OutputKind } from './types';
@@ -23,6 +24,7 @@ export const ENGINES: readonly Engine[] = [
   officeEngine,
   ocrEngine,
   protectEngine,
+  dataEngine,
 ];
 
 /** Operations that consume the whole selection as one job instead of one job per file. */

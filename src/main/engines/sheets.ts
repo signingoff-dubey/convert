@@ -50,7 +50,7 @@ export const sheetsEngine: Engine = {
   canHandle: (op, input) =>
     op.kind === 'convert' &&
     ['xlsx', 'csv', 'tsv'].includes(extensionOf(input)) &&
-    ['xlsx', 'csv', 'tsv', 'txt'].includes(op.id),
+    ['xlsx', 'csv', 'tsv', 'txt', 'json'].includes(op.id),
   async run(op, input, ctx) {
     await convertSheets(op, input, ctx);
     // Charts and pictures in a workbook cannot be part of CSV, TSV or text.
@@ -81,6 +81,19 @@ async function convertSheets(op: Operation, input: string, ctx: RunContext): Pro
           ? sheets.map((s) => `## ${s.name}\n${unparse(s.rows)}`).join('\n\n')
           : unparse(first);
       return writeFile(ctx.tempPath, text + '\n', 'utf8');
+    }
+    if (op.id === 'json') {
+      // The first row names the columns; each later row becomes one record. Several sheets are keyed by name.
+      const records = (rows: Row[]) => {
+        const [head, ...body] = rows;
+        const names = (head ?? []).map((h, i) => String(h ?? '').trim() || `column${i + 1}`);
+        return body.map((r) => Object.fromEntries(names.map((n, i) => [n, r[i] ?? null])));
+      };
+      const out =
+        sheets.length > 1
+          ? Object.fromEntries(sheets.map((s) => [s.name, records(s.rows)]))
+          : records(first);
+      return writeFile(ctx.tempPath, JSON.stringify(out, null, 2) + '\n', 'utf8');
     }
     // CSV and TSV: one file per sheet, beside the workbook. A single sheet keeps the workbook's name.
     const base = basename(input).replace(/\.[^.]+$/, '');

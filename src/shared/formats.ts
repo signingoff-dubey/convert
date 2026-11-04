@@ -10,6 +10,7 @@ export type Category =
   | 'spreadsheet'
   | 'epub'
   | 'subtitles'
+  | 'data'
   | 'archive';
 
 export type WheelId = 'convert' | 'tools' | 'actions' | 'share';
@@ -62,7 +63,8 @@ export const EXTENSIONS: Record<Category, readonly string[]> = {
   slides: ['ppt', 'pptx'],
   spreadsheet: ['xlsx', 'xls', 'ods', 'csv', 'tsv'],
   epub: ['epub'],
-  subtitles: ['srt', 'vtt'],
+  subtitles: ['srt', 'vtt', 'ass', 'ssa', 'lrc', 'sbv'],
+  data: ['json', 'yaml', 'yml', 'toml', 'xml'],
   archive: ['zip', 'tar', 'gz', 'tgz', 'rar'],
 };
 
@@ -74,6 +76,8 @@ const ALIASES: Record<string, string> = {
   heif: 'heic',
   aif: 'aiff',
   tgz: 'gz',
+  yml: 'yaml',
+  ssa: 'ass',
 };
 
 const t = (id: string, label: string, extra: Partial<Target> = {}): Target => ({
@@ -93,6 +97,7 @@ export const CONVERT_TARGETS: Record<Category, readonly Target[]> = {
     t('tiff', 'TIFF'),
     t('avif', 'AVIF'),
     t('bmp', 'BMP'),
+    t('ico', 'ICO (icon)'),
     t('pdf', 'PDF'),
     t('txt', 'TXT (read text)', { notFor: ['svg'] }),
   ],
@@ -145,11 +150,20 @@ export const CONVERT_TARGETS: Record<Category, readonly Target[]> = {
     t('ods', 'ODS', { needsOffice: true }),
     t('csv', 'CSV'),
     t('tsv', 'TSV'),
+    t('json', 'JSON'),
     t('txt', 'TXT'),
     t('pdf', 'PDF', { needsOffice: true }),
   ],
   epub: [t('docx', 'DOCX'), t('md', 'MD'), t('txt', 'TXT'), t('html', 'HTML'), t('pdf', 'PDF')],
-  subtitles: [t('srt', 'SRT'), t('vtt', 'VTT'), t('txt', 'TXT')],
+  subtitles: [t('srt', 'SRT'), t('vtt', 'VTT'), t('ass', 'ASS'), t('lrc', 'LRC'), t('txt', 'TXT')],
+  data: [
+    t('json', 'JSON'),
+    t('yaml', 'YAML'),
+    t('toml', 'TOML'),
+    t('xml', 'XML'),
+    t('csv', 'CSV'),
+    t('xlsx', 'XLSX'),
+  ],
   archive: [
     { id: 'extract-here', ext: null, label: 'Extract here' },
     t('zip', 'ZIP'),
@@ -280,11 +294,11 @@ export const TOOLS: Partial<Record<Category, readonly Tool[]>> = {
     { id: 'split', label: 'Split pages', opensWindow: true, maxFiles: 1 },
     {
       id: 'delete-pages',
-      label: 'Delete pages',
+      label: 'Edit pages',
       opensWindow: true,
       maxFiles: 1,
       description:
-        'See every page as a thumbnail, untick the ones to drop, and save the rest as a new PDF.',
+        'See every page as a thumbnail: remove pages, turn them, change their order, add a watermark or page numbers, and save a new PDF.',
     },
     { id: 'merge', label: 'Merge', opensWindow: true, minFiles: 2 },
     PASSWORD,
@@ -569,6 +583,12 @@ const MIME_EXT: Record<string, string> = {
   'text/html': 'html',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
   'text/csv': 'csv',
+  'application/json': 'json',
+  'application/x-yaml': 'yaml',
+  'text/yaml': 'yaml',
+  'application/toml': 'toml',
+  'application/xml': 'xml',
+  'text/xml': 'xml',
   'application/vnd.ms-excel': 'xls',
   'text/tab-separated-values': 'tsv',
   'application/x-subrip': 'srt',

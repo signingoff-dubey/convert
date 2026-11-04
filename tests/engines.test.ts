@@ -1075,3 +1075,133 @@ describe('files that hold more than text', () => {
     expect(readFileSync(ok(r), 'utf8')).toContain('body');
   });
 });
+
+describe('data files', () => {
+  const put = (name: string, text: string) => {
+    const p = join(dir, name);
+    writeFileSync(p, text);
+    return p;
+  };
+  const out = async (id: string, src: string) =>
+    readFileSync(ok((await run(id, 'convert', [src]))[0] as JobResult), 'utf8');
+
+  it('converts JSON, YAML, TOML and XML into each other without losing values', async () => {
+    const json = put(
+      'cfg.json',
+      JSON.stringify({ name: 'app', port: 8080, tags: ['a', 'b'], db: { host: 'x', ssl: true } }),
+    );
+    const yaml = await out('yaml', json);
+    expect(yaml).toContain('port: 8080');
+    const back = JSON.parse(await out('json', put('cfg.yaml', yaml)));
+    expect(back).toEqual({
+      name: 'app',
+      port: 8080,
+      tags: ['a', 'b'],
+      db: { host: 'x', ssl: true },
+    });
+    const toml = await out('toml', json);
+    expect(toml).toContain('[db]');
+    expect(JSON.parse(await out('json', put('cfg.toml', toml)))).toEqual(back);
+    const xml = await out('xml', json);
+    expect(xml).toMatch(/^<\?xml/);
+    expect(xml).toContain('<port>8080</port>');
+  });
+
+  it('wraps what TOML cannot start with, drops nulls, and says so', async () => {
+    const list = put('list.json', '[{"a":1,"b":null}]');
+    const r = (await run('toml', 'convert', [list]))[0] as JobResult;
+    expect(readFileSync(ok(r), 'utf8')).toContain('[[items]]');
+    expect(r.warning).toMatch(/under "items"/);
+    expect(r.warning).toMatch(/1 empty value/);
+  });
+
+  it('makes a table from a list of records, with nested values kept as JSON, for CSV and XLSX', async () => {
+    const src = put(
+      'rows.json',
+      JSON.stringify([
+        { id: 1, name: 'A', tags: ['x'] },
+        { id: 2, name: 'B', extra: true },
+      ]),
+    );
+    const csv = (await out('csv', src)).replace(/^﻿/, '');
+    expect(csv).toBe('id,name,tags,extra\r\n1,A,"[""x""]",\r\n2,B,,true');
+    const xlsx = ok((await run('xlsx', 'convert', [src]))[0] as JobResult);
+    expect(magic(xlsx, 2).toString()).toBe('PK');
+    const wrapped = put('wrapped.json', JSON.stringify({ meta: 1, users: [{ n: 'a' }] }));
+    expect((await out('csv', wrapped)).replace(/^﻿/, '')).toBe('n\r\na');
+    const bad = (await run('csv', 'convert', [put('scalar.json', '"hello"')]))[0] as JobResult;
+    expect(bad.status).toBe('ok'); // a lone value becomes a one-row table
+  });
+
+  it('reports broken syntax as a damaged file, and turns a spreadsheet into JSON records', async () => {
+    const broken = (await run('yaml', 'convert', [put('broken.json', '{"a": ')]))[0] as JobResult;
+    expect(broken.error?.code).toBe('E_CORRUPT_INPUT');
+    const csv = put('people.csv', 'name,age\nAda,36\nLin,41\n');
+    expect(JSON.parse(await out('json', csv))).toEqual([
+      { name: 'Ada', age: '36' },
+      { name: 'Lin', age: '41' },
+    ]);
+  });
+});
+
+describe('PDF page editor', () => {
+  it('reorders, turns and stamps pages, and reads its own order syntax', async () => {
+    const { parsePageOrder, latin } = await import('../src/main/engines/pdf');
+    expect(parsePageOrder('3,1r90,2r270', 3)).toEqual([
+      { index: 2, rotate: 0 },
+      { index: 0, rotate: 90 },
+      { index: 1, rotate: 270 },
+    ]);
+    expect(() => parsePageOrder('4', 3)).toThrow(/not in this PDF/);
+    expect(() => parsePageOrder('1r45', 3)).toThrow();
+    expect(latin('Draft é ✓ 日本')).toBe('Draft é ? ??');
+    const src = await makePdf('edit-src.pdf', ['one', 'two', 'three']);
+    const r = (
+      await run('delete-pages', 'tool', [src], {
+        order: '3,1r90',
+        pageNumbers: true,
+        watermark: 'DRAFT',
+      })
+    )[0] as JobResult;
+    const doc = await PDFDocument.load(readFileSync(ok(r)));
+    expect(doc.getPageCount()).toBe(2);
+    expect(doc.getPage(1).getRotation().angle).toBe(90);
+    expect(doc.getPage(0).getRotation().angle).toBe(0);
+    // The stamps are real text on the pages, so reading the result back finds them.
+    const text = readFileSync(ok((await run('txt', 'convert', [ok(r)]))[0] as JobResult), 'utf8');
+    expect(text).toContain('1 / 2');
+    expect(text).toContain('2 / 2');
+    expect(text).toContain('DRAFT');
+  });
+
+  it('refuses a request that changes nothing, and allows a stamp alone', async () => {
+    const src = await makePdf('edit-same.pdf', ['a', 'b']);
+    const same = (await run('delete-pages', 'tool', [src], { order: '1,2' }))[0] as JobResult;
+    expect(same.status).toBe('error');
+    const stamped = (
+      await run('delete-pages', 'tool', [src], { order: '1,2', watermark: 'COPY' })
+    )[0] as JobResult;
+    expect(stamped.status).toBe('ok');
+  });
+});
+
+describe('icons', () => {
+  it('writes a Windows icon with every size up to the picture, as PNG pictures', async () => {
+    const { buildIco, iconSizes } = await import('../src/main/engines/ico');
+    expect(iconSizes(40, 30)).toEqual([16, 24, 32]);
+    expect(iconSizes(4, 4)).toEqual([16]);
+    expect(iconSizes(1000, 800)).toEqual([16, 24, 32, 48, 64, 128, 256]);
+    const src = await makePng('logo.png', 300, 200);
+    const out = ok((await run('ico', 'convert', [src]))[0] as JobResult);
+    const ico = readFileSync(out);
+    expect([ico.readUInt16LE(0), ico.readUInt16LE(2)]).toEqual([0, 1]);
+    const count = ico.readUInt16LE(4);
+    expect(count).toBe(7);
+    // The last entry is 256 px (stored as 0) and its data is a real PNG.
+    const entry = 6 + (count - 1) * 16;
+    expect(ico[entry]).toBe(0);
+    const at = ico.readUInt32LE(entry + 12);
+    expect(ico.subarray(at, at + 4).toString('latin1')).toBe('\x89PNG');
+    expect(buildIco([]).length).toBe(6);
+  });
+});

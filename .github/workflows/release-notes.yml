@@ -1,0 +1,28 @@
+# Sets an existing release's text from CHANGELOG.md, without rebuilding anything.
+name: Release notes
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag, for example v1.3.0
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  notes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Write the notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          node scripts/release-notes.mjs "$TAG" > notes.md
+          gh release edit "$TAG" --notes-file notes.md

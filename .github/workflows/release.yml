@@ -33,9 +33,14 @@ jobs:
         with:
           name: Convert-Setup
           path: release/Convert-Setup-*.exe
+      - name: Write the release notes from CHANGELOG.md
+        shell: bash
+        run: |
+          tag="${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}"
+          node scripts/release-notes.mjs "$tag" > release-notes.md || echo "Convert $tag" > release-notes.md
       - name: Publish the release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}
           files: release/Convert-Setup-*.exe
-          generate_release_notes: true
+          body_path: release-notes.md

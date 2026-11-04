@@ -68,6 +68,29 @@ export const CHANNELS = {
     }),
     response: z.void(),
   },
+  /** Something dragged out of a browser: bytes the browser gave, or an address to fetch. */
+  'overlay:drop-web': {
+    request: z.object({
+      wheelId: WheelId,
+      wedgeId: z.string().min(1).max(64),
+      items: z
+        .array(
+          z.object({
+            name: z.string().max(255).optional(),
+            mime: z.string().max(100).optional(),
+            data: z
+              .custom<Uint8Array>(
+                (v) => v instanceof Uint8Array && v.byteLength <= 150 * 1024 * 1024,
+              )
+              .optional(),
+            url: z.string().max(8192).optional(),
+          }),
+        )
+        .min(1)
+        .max(20),
+    }),
+    response: z.void(),
+  },
   'overlay:cancel': {
     request: z.object({ reason: z.enum(['not-on-disk']).optional() }).optional(),
     response: z.void(),

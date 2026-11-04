@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { app, clipboard, dialog, globalShortcut, ipcMain, nativeTheme, shell } from 'electron';
+import { app, clipboard, dialog, globalShortcut, ipcMain, nativeTheme, net, shell } from 'electron';
 import { registerPreviewScheme, installPreviewHandler } from './protocol';
 import { ToolWindowName } from '../shared/ipc';
 import { dispatchWedge, type DispatchDeps } from './dispatch';
@@ -13,6 +13,7 @@ import { parseCli } from './services/cli';
 import { applySendTo } from './services/sendto';
 import { windowFinder } from './services/share';
 import type { JobResult } from './jobs/types';
+import { MAX_WEB_BYTES, type WebFetchResult } from './services/webdrop';
 import { WatchService } from './services/watch';
 import { printHtmlToPdf } from './services/print-pdf';
 import { detectOffice } from './engines/binaries';
@@ -45,6 +46,34 @@ registerPreviewScheme();
 app.setName('Convert');
 
 const log = logger('main');
+
+/** Fetches a dragged picture's address, giving up after 30 seconds or 150 MB. Used only when the user drops one. */
+async function fetchPublic(url: string): Promise<WebFetchResult> {
+  const res = await net.fetch(url, {
+    redirect: 'follow',
+    signal: AbortSignal.timeout(30_000),
+    headers: { 'User-Agent': 'Convert' },
+  });
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  const reader = res.body?.getReader();
+  while (reader) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_WEB_BYTES) {
+      await reader.cancel();
+      throw new Error('too large');
+    }
+    chunks.push(value);
+  }
+  return {
+    ok: res.ok,
+    url: res.url,
+    contentType: res.headers.get('content-type') ?? '',
+    bytes: Buffer.concat(chunks),
+  };
+}
 
 /** A hook source that does nothing, for machines where global hooks are not available. */
 const inertSource: HookSource = {
@@ -223,6 +252,7 @@ async function main(): Promise<void> {
     state,
     registry,
     pdfHost,
+    web: { dir: app.getPath('downloads'), fetch: fetchPublic },
     dispatch: dispatchDeps,
     shortcuts,
     userData,

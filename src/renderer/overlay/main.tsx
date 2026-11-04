@@ -6,6 +6,7 @@ import { invoke, on, pathForFile } from '../shared/api';
 import { useSettings } from '../shared/store';
 import '../theme/tokens.css';
 import { hitTest } from './hit-test';
+import { dragTypes, webAddresses } from './web-drag';
 import { buildWheel, itemsFromMimeTypes, sourceLabel } from './wedges';
 
 interface OpenPayload {
@@ -83,12 +84,7 @@ function App() {
 
   const onDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
-    if (mimes === null) {
-      const types = Array.from(e.dataTransfer.items)
-        .filter((i) => i.kind === 'file')
-        .map((i) => i.type);
-      setMimes(types);
-    }
+    if (mimes === null) setMimes(dragTypes(e.dataTransfer));
   };
 
   const onDragOver = (e: React.DragEvent) => {
@@ -106,20 +102,32 @@ function App() {
     e.preventDefault();
     const result = hit(e.clientX, e.clientY);
     const files = Array.from(e.dataTransfer.files);
+    // Text data can only be read inside the event, so the addresses are collected now.
+    const urls = webAddresses(e.dataTransfer);
     if (!open || !model) return void invoke('overlay:cancel');
-    if (files.length === 0) {
+    const onWedge = result?.kind === 'wedge' && model.wedges[result.index]?.enabled;
+    const wedgeId = onWedge ? (model.wedges[result.index] as { id: string }).id : null;
+    const paths = files.map((f) => pathForFile(f)).filter((p) => p !== '');
+    if (wedgeId !== null && paths.length > 0) {
+      return void invoke('overlay:drop', { wheelId: open.wheelId, wedgeId, paths });
+    }
+    if (wedgeId !== null && (files.length > 0 || urls.length > 0)) {
+      // Dragged out of a web page: there is no file yet, so the picture is sent over to be saved first.
+      void (async () => {
+        const items = [];
+        for (const f of files.filter((x) => pathForFile(x) === '').slice(0, 20)) {
+          if (f.size > 150 * 1024 * 1024) continue;
+          items.push({ name: f.name, mime: f.type, data: new Uint8Array(await f.arrayBuffer()) });
+        }
+        if (items.length === 0) for (const url of urls.slice(0, 20)) items.push({ url });
+        if (items.length === 0) return void invoke('overlay:cancel', { reason: 'not-on-disk' });
+        void invoke('overlay:drop-web', { wheelId: open.wheelId, wedgeId, items });
+      })();
+      return;
+    }
+    if (files.length === 0 && urls.length === 0) {
       setNotice("This item isn't a file on disk.");
       return void invoke('overlay:cancel', { reason: 'not-on-disk' });
-    }
-    if (result?.kind === 'wedge' && model.wedges[result.index]?.enabled) {
-      const wedge = model.wedges[result.index];
-      const paths = files.map((f) => pathForFile(f)).filter((p) => p !== '');
-      if (paths.length === 0) return void invoke('overlay:cancel', { reason: 'not-on-disk' });
-      return void invoke('overlay:drop', {
-        wheelId: open.wheelId,
-        wedgeId: (wedge as { id: string }).id,
-        paths,
-      });
     }
     // A drop in the hole, in a disabled wedge, or outside the wheel cancels. Nothing happens to the file.
     void invoke('overlay:cancel');

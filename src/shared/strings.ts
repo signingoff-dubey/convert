@@ -66,6 +66,9 @@ export const STRINGS = {
     notOnDisk: "This item isn't a file on disk.",
     paused: 'Convert is paused',
     textCopied: (chars: number) => `Copied ${chars.toLocaleString('en-US')} characters of text`,
+    webSaved: (n: number, folder: string) =>
+      `${n === 1 ? 'Picture' : `${n} files`} saved in ${folder}`,
+    webFailed: 'That could not be saved. Try dragging the picture again, or save it first.',
     foldersNotShared:
       'Folders cannot be pasted into a chat, so only the files were shared. Zip a folder first.',
     shared: (n: number, app: string, via: 'app' | 'window' | 'browser') =>

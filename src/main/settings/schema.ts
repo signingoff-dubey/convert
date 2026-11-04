@@ -18,6 +18,8 @@ export const Settings = z.object({
     runInBackground: z.boolean().default(true),
     /** Adds "Convert to PDF, PNG, ..." to Explorer's Send to menu. */
     sendTo: z.boolean().default(false),
+    /** Lets a drag that starts on a picture in a web browser open the wheel. */
+    dragFromBrowsers: z.boolean().default(true),
     /** Browser used for the web version of an app when no desktop app is installed. */
     shareBrowser: z.enum(['default', 'chrome', 'edge', 'firefox', 'brave']).default('default'),
     allowedWindowClasses: z.array(z.string()).default(['CabinetWClass', 'Progman', 'WorkerW']),

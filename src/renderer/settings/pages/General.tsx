@@ -40,6 +40,16 @@ export function General() {
           />
         </SettingRow>
         <SettingRow
+          label="Drag pictures from web browsers"
+          description="Drag a picture, or a video or PDF link, out of Chrome, Edge, Firefox or Brave onto the wheel. Convert saves it in your Downloads folder first, then converts, compresses or shares it like any other file."
+        >
+          <Switch
+            label="Drag pictures from web browsers"
+            checked={s.general.dragFromBrowsers}
+            onChange={(v) => void save({ general: { dragFromBrowsers: v } })}
+          />
+        </SettingRow>
+        <SettingRow
           label="Browser for sharing"
           description="Share opens the app when it is installed. Otherwise it brings forward a browser window that already has the site open, or opens the site in this browser. Pick the one you are signed in to."
         >

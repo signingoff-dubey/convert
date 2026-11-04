@@ -20,6 +20,7 @@ import {
 import { validateDropped, type DispatchDeps } from './dispatch';
 import { probeDuration } from './engines/av';
 import { detectOffice } from './engines/binaries';
+import { saveWebItems, type WebDropDeps } from './services/webdrop';
 import { pageThumbnails } from './engines/pdf';
 import { allowPreview } from './protocol';
 import { isEncrypted } from './engines/protect';
@@ -52,6 +53,8 @@ export interface IpcContext {
   toasts: ToastManager;
   toolwin: ToolWindowManager;
   pdfHost: PdfHost;
+  /** Where dragged web pictures are saved, and how an address is fetched. */
+  web: WebDropDeps;
   float: FloatShelf;
   state: AppState;
   registry: WindowRegistry;
@@ -160,6 +163,17 @@ export function registerIpc(ctx: IpcContext): void {
 
   // ---- overlay
   handle('overlay:drop', async ({ wheelId, wedgeId, paths }) => {
+    ctx.trigger.handleOverlayDrop(wheelId, { kind: 'wedge', wedgeId }, paths);
+  });
+  handle('overlay:drop-web', async ({ wheelId, wedgeId, items }) => {
+    const { paths } = await saveWebItems(items, ctx.web);
+    if (paths.length === 0) {
+      ctx.trigger.cancelOverlay();
+      ctx.dispatch.notify(STRINGS.toast.webFailed, 'error');
+      return;
+    }
+    // From here the files are ordinary files in Downloads, so every wheel works on them.
+    ctx.dispatch.notify(STRINGS.toast.webSaved(paths.length, path.dirname(paths[0] as string)));
     ctx.trigger.handleOverlayDrop(wheelId, { kind: 'wedge', wedgeId }, paths);
   });
   handle('overlay:cancel', (payload) => {

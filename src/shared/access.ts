@@ -6,7 +6,7 @@ export type PageName =
 export const WINDOW_ACCESS: Record<PageName, { invoke: readonly string[]; on: readonly string[] }> =
   {
     overlay: {
-      invoke: ['overlay:drop', 'overlay:cancel', 'settings:get', 'app:meta'],
+      invoke: ['overlay:drop', 'overlay:drop-web', 'overlay:cancel', 'settings:get', 'app:meta'],
       on: [
         'overlay:open',
         'overlay:switch',

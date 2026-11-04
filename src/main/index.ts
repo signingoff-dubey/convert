@@ -9,6 +9,8 @@ import { shutdownOcr } from './engines/ocr';
 import { setPdfBackend } from './engines/pdf';
 import { PdfHost } from './services/pdf-host';
 import { openInBrowser } from './services/browsers';
+import { parseCli } from './services/cli';
+import { applySendTo } from './services/sendto';
 import { windowFinder } from './services/share';
 import type { JobResult } from './jobs/types';
 import { WatchService } from './services/watch';
@@ -252,6 +254,7 @@ async function main(): Promise<void> {
     );
     applyPause();
     applyAutostart(next.general.startWithWindows, state.firstRunDone);
+    void applySendTo(next.general.sendTo);
   });
   nativeTheme.on('updated', () => {
     const s = settings.get();
@@ -266,6 +269,7 @@ async function main(): Promise<void> {
 
   if (process.platform === 'win32') applyPause();
   applyAutostart(settings.get().general.startWithWindows, state.firstRunDone);
+  void applySendTo(settings.get().general.sendTo);
 
   // Developer aid, only in unpackaged runs: --dev-tool=crop:C:\\path\\photo.png opens a tool window directly.
   const devTool = app.isPackaged
@@ -287,10 +291,22 @@ async function main(): Promise<void> {
       queue.enqueue({ id, kind }, [first.join(':'), ...files]);
   }
 
-  const hidden = process.argv.includes('--hidden');
-  if (!state.firstRunDone || !hidden) await settingsWindow.open();
+  // `Convert.exe --convert pdf file...` comes from Explorer's Send to menu or a script. A second launch hands
+  // its request to this running copy.
+  const runCli = (argv: readonly string[]): boolean => {
+    const { convert } = parseCli(argv);
+    if (!convert) return false;
+    void dispatchWedge(dispatchDeps, 'convert', convert.target, convert.files);
+    return true;
+  };
+  app.on('second-instance', (_event, argv) => {
+    if (!runCli(argv)) void settingsWindow.open();
+  });
+  const startedWithRequest = runCli(process.argv);
 
-  app.on('second-instance', () => void settingsWindow.open());
+  const hidden = process.argv.includes('--hidden');
+  if (!state.firstRunDone || (!hidden && !startedWithRequest)) await settingsWindow.open();
+
   // Closing the settings window leaves Convert running in the tray, so the shortcuts keep working. With
   // "Keep running in the background" off, closing it quits instead.
   let toldAboutTray = false;

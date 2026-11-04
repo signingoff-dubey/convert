@@ -253,6 +253,12 @@ const windowOf = (app, part) => app.windows().find((w) => w.url().includes(part)
     /Native heading/.test(picText) && (picText.match(/HELLO/gi) ?? []).length === 2,
     JSON.stringify(picText.slice(0, 120)),
   );
+  // Explorer's Send to menu runs `Convert.exe --convert <format> <files>`.
+  writeFileSync(join(dir, 'sendto.png'), await sharp(Buffer.from(svg)).png().toBuffer());
+  app = await launch(dir, ['--hidden', '--convert', 'webp', join(dir, 'sendto.png')]);
+  await wait(4000);
+  check('--convert converts the files it is given', existsSync(join(dir, 'sendto.webp')));
+  await app.close();
 
   const failed = results.filter((r) => !r).length;
   console.log(`\n${results.length - failed} passed, ${failed} failed`);

@@ -30,6 +30,16 @@ export function General() {
           />
         </SettingRow>
         <SettingRow
+          label="Add to the right-click Send to menu"
+          description="Adds “Convert to PDF”, PNG, JPG, WebP, MP3, MP4 and text under Send to in Explorer's right-click menu (Show more options on Windows 11). Works on a whole selection."
+        >
+          <Switch
+            label="Add to the Send to menu"
+            checked={s.general.sendTo}
+            onChange={(v) => void save({ general: { sendTo: v } })}
+          />
+        </SettingRow>
+        <SettingRow
           label="Browser for sharing"
           description="Share opens the app when it is installed. Otherwise it brings forward a browser window that already has the site open, or opens the site in this browser. Pick the one you are signed in to."
         >

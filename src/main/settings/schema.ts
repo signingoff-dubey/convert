@@ -16,6 +16,8 @@ export const Settings = z.object({
     paused: z.boolean().default(false),
     /** Keep Convert running in the tray when its windows are closed, so the wheel keeps working. */
     runInBackground: z.boolean().default(true),
+    /** Adds "Convert to PDF, PNG, ..." to Explorer's Send to menu. */
+    sendTo: z.boolean().default(false),
     /** Browser used for the web version of an app when no desktop app is installed. */
     shareBrowser: z.enum(['default', 'chrome', 'edge', 'firefox', 'brave']).default('default'),
     allowedWindowClasses: z.array(z.string()).default(['CabinetWClass', 'Progman', 'WorkerW']),

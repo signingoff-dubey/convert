@@ -21,6 +21,30 @@ export interface WheelModel {
   category: string | null;
 }
 
+/**
+ * One plain sentence for wedges whose name alone does not say what happens. Keyed by the wedge id, or by
+ * "category:id" when the same id means something different for another kind of file.
+ */
+export const WEDGE_TIPS: Record<string, string> = {
+  'image:txt': 'Reads the words in the picture',
+  'pdf:txt': 'Saves the text of the PDF',
+  'copy-text': 'Copies the words to the clipboard',
+  upscale: 'Makes pictures bigger',
+  'remove-bg': 'Clears a plain background',
+  'delete-pages': 'Remove, turn or reorder pages',
+  password: 'Add or remove a password',
+  frames: 'Saves pictures from the video',
+  merge: 'Joins the files into one',
+  redact: 'Covers faces or text',
+  metadata: 'Edit camera and location tags',
+  'add-bg': 'Puts the picture on a background',
+  zip: 'Puts the files in one ZIP',
+  share: 'Copies the files and opens the app',
+};
+
+const tipFor = (category: string | null, id: string): string | undefined =>
+  WEDGE_TIPS[`${category}:${id}`] ?? WEDGE_TIPS[id];
+
 export interface Prefs {
   order: Record<string, string[]>;
   disabled: Record<string, string[]>;
@@ -63,6 +87,7 @@ export function buildWheel(
       id: a.id,
       label: a.label,
       icon: WEDGE_ICONS[a.id],
+      tip: tipFor(null, a.id),
       enabled: true,
     }));
     const key = wheelKey('actions', null);
@@ -82,6 +107,7 @@ export function buildWheel(
       id: t.id,
       label: t.label,
       icon: WEDGE_ICONS[t.id],
+      tip: WEDGE_TIPS.share,
       enabled: true,
     }));
     const key = wheelKey('share', null);
@@ -99,7 +125,12 @@ export function buildWheel(
       return { title, hint: result.hint, disabled: true, wedges: PLACEHOLDER, category: null };
     const base = result.items.map((t) => ({
       id: t.id,
-      label: t.label.replace(' (extract audio)', ''),
+      // Long parentheses stay in Settings; the wheel shows the short name and explains it on hover.
+      label: t.label
+        .replace(' (extract audio)', '')
+        .replace(' (read text)', '')
+        .replace(' (icon)', ''),
+      tip: tipFor(result.category, t.id),
       enabled: true,
     }));
     const key = wheelKey('convert', result.category);
@@ -118,6 +149,7 @@ export function buildWheel(
     id: t.id,
     label: t.label,
     icon: WEDGE_ICONS[t.id],
+    tip: tipFor(result.category, t.id),
     enabled: true,
   }));
   const key = wheelKey('tools', result.category);

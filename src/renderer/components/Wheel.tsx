@@ -6,6 +6,8 @@ export interface WedgeView {
   label: string;
   icon?: LucideIcon;
   enabled: boolean;
+  /** One plain sentence shown under the centre label while this wedge is hovered. */
+  tip?: string;
 }
 
 export type WheelStyle = 'glass' | 'solid' | 'outline';
@@ -30,13 +32,23 @@ const TAU = Math.PI * 2;
 export const HOLE = 0.38;
 export const RING = 0.9;
 
+/** Splits a long label onto two lines at the space nearest its middle. Short labels stay on one line. */
+export function labelLines(label: string): string[] {
+  if (label.length <= 7) return [label];
+  const spaces = [...label.matchAll(/ /g)].map((m) => m.index as number);
+  if (spaces.length === 0) return [label];
+  const mid = label.length / 2;
+  const at = spaces.reduce((best, i) => (Math.abs(i - mid) < Math.abs(best - mid) ? i : best));
+  return [label.slice(0, at), label.slice(at + 1)];
+}
+
 /** Smaller type for long labels on crowded or small wheels, so neighbouring labels never collide. */
 export function labelSize(label: string, diameter: number, count: number): number {
   const labelRadius = (diameter / 2) * (HOLE + (RING - HOLE) * 0.56);
   const chord = 2 * labelRadius * Math.sin(Math.PI / Math.max(count, 3));
   const natural = diameter < 260 ? 10.5 : 12;
   const fit = (chord * 0.92) / (Math.max(label.length, 3) * 0.72);
-  return Math.max(8, Math.min(natural, Math.round(fit * 10) / 10));
+  return Math.max(7.5, Math.min(natural, Math.round(fit * 10) / 10));
 }
 
 /**
@@ -165,9 +177,13 @@ export function Wheel({
               )}
               <text
                 x={lx}
-                y={Icon ? ly + 9 : ly + 4.5}
+                y={(Icon ? ly + 9 : ly + 4.5) - (labelLines(w.label).length - 1) * 5.5}
                 textAnchor="middle"
-                fontSize={labelSize(w.label, diameter, count)}
+                fontSize={labelSize(
+                  [...labelLines(w.label)].sort((a, b) => b.length - a.length)[0] ?? w.label,
+                  diameter,
+                  count,
+                )}
                 fontWeight={700}
                 letterSpacing={0.3}
                 fill={active ? 'var(--on-accent)' : 'var(--text)'}
@@ -177,7 +193,11 @@ export function Wheel({
                   transition: 'fill 90ms ease-out',
                 }}
               >
-                {w.label}
+                {labelLines(w.label).map((line, i) => (
+                  <tspan key={line} x={lx} dy={i === 0 ? 0 : 11}>
+                    {line}
+                  </tspan>
+                ))}
               </text>
             </g>
           );
@@ -199,7 +219,7 @@ export function Wheel({
         style={{ width: r0 * 2 - 10 }}
       >
         <span
-          className="max-w-full truncate rounded-full border border-line bg-surface px-3 py-1 text-center font-bold uppercase leading-none tracking-wide shadow-sm"
+          className="max-w-full rounded-full border border-line bg-surface px-3 py-1 text-center font-bold uppercase leading-tight tracking-wide shadow-sm"
           style={{
             fontSize: centre.length > 6 ? 10 : 12.5,
             color: hovered !== null ? 'var(--accent)' : 'var(--text)',
@@ -208,6 +228,11 @@ export function Wheel({
         >
           {centre}
         </span>
+        {hovered !== null && wedges[hovered]?.tip && (
+          <span className="mt-1 text-center text-[9.5px] leading-tight text-muted">
+            {wedges[hovered]?.tip}
+          </span>
+        )}
         {hint && hovered === null && (
           <span className="mt-1 text-center text-[9.5px] leading-tight text-muted">{hint}</span>
         )}

@@ -2,6 +2,11 @@
 
 Newest first. Each release's notes on GitHub are taken from the matching section here.
 
+## 1.3.2
+
+- **Wheel labels fit.** Long names now wrap onto two lines instead of running outside their wedge, and picture-to-text shows as just **TXT**.
+- **Hover to see what a wedge does.** Under the centre label a short sentence appears, such as "Reads the words in the picture" for TXT on a picture, or "Copies the words to the clipboard" for Copy text.
+
 ## 1.3.1
 
 - **Update progress bar.** Settings → About shows a bar while a new version downloads, and a purple dot appears next to About.

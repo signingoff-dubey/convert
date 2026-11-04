@@ -78,3 +78,31 @@ describe('roundedSectorPath', () => {
     expect(plain.endsWith('Z')).toBe(true);
   });
 });
+
+import { labelLines } from '../src/renderer/components/Wheel';
+import { buildWheel } from '../src/renderer/overlay/wedges';
+
+describe('long wheel labels', () => {
+  it('wraps a long label at the space nearest its middle, and keeps short ones whole', () => {
+    expect(labelLines('PNG')).toEqual(['PNG']);
+    expect(labelLines('Copy text')).toEqual(['Copy', 'text']);
+    expect(labelLines('Compress')).toEqual(['Compress']);
+    expect(labelLines('Trim start/end')).toEqual(['Trim', 'start/end']);
+    expect(labelLines('Extract frames')).toEqual(['Extract', 'frames']);
+    expect(labelLines('Supercalifragilistic')).toEqual(['Supercalifragilistic']);
+  });
+
+  it('shows a picture-to-text wedge as TXT and explains it on hover', () => {
+    const prefs = { order: {}, disabled: {} };
+    const flags = { office: false, heic: false };
+    const wheel = buildWheel('convert', [{ path: 'a.png', isDirectory: false }], prefs, flags);
+    const txt = wheel.wedges.find((w) => w.id === 'txt');
+    expect(txt?.label).toBe('TXT (READ TEXT)'.replace('(READ TEXT)', '').trim());
+    expect(txt?.tip).toBe('Reads the words in the picture');
+    const tools = buildWheel('tools', [{ path: 'a.png', isDirectory: false }], prefs, flags);
+    expect(tools.wedges.find((w) => w.id === 'copy-text')?.tip).toContain('clipboard');
+    // A PDF's TXT means something different, and says so.
+    const pdf = buildWheel('convert', [{ path: 'a.pdf', isDirectory: false }], prefs, flags);
+    expect(pdf.wedges.find((w) => w.id === 'txt')?.tip).toBe('Saves the text of the PDF');
+  });
+});

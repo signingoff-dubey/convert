@@ -372,7 +372,14 @@ export function registerIpc(ctx: IpcContext): void {
       }),
     );
   });
-  handle('update:status', () => ctx.updater.status());
+  handle('update:status', () => {
+    // Development only: CONVERT_UPDATE_DEMO=downloading or ready shows that state, for screenshots and design work.
+    const demo = app.isPackaged ? undefined : process.env.CONVERT_UPDATE_DEMO;
+    if (demo === 'downloading')
+      return { state: 'downloading' as const, version: '9.9.9', percent: 42 };
+    if (demo === 'ready') return { state: 'ready' as const, version: '9.9.9' };
+    return ctx.updater.status();
+  });
   handle('update:check', () => ctx.updater.check(true));
   handle('update:install', () => ctx.updater.installNow());
   handle('history:clear', () => {

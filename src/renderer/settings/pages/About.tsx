@@ -25,6 +25,11 @@ export function updateText(u: Update): string {
   }
 }
 
+/** The download's progress as 0 to 100, or null when nothing is downloading. */
+export function updateProgress(u: Update): number | null {
+  return u.state === 'downloading' ? Math.max(0, Math.min(100, u.percent ?? 0)) : null;
+}
+
 export function About() {
   const [update, setUpdate] = useState<Update | null>(null);
   const refresh = useCallback(() => void loadUpdate().then(setUpdate), []);
@@ -53,6 +58,23 @@ export function About() {
         </div>
       </Section>
       <Section title="Updates">
+        <div className="px-4 pt-3">
+          {update && updateProgress(update) !== null && (
+            <div
+              role="progressbar"
+              aria-label="Update download"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={updateProgress(update) ?? 0}
+              className="h-2 overflow-hidden rounded-full bg-surface2"
+            >
+              <div
+                className="h-full rounded-full bg-accent transition-[width] duration-300"
+                style={{ width: `${updateProgress(update)}%` }}
+              />
+            </div>
+          )}
+        </div>
         <div className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
           <span className="text-muted">{update ? updateText(update) : ''}</span>
           <span className="flex shrink-0 gap-2">

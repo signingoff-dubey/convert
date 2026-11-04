@@ -2,6 +2,11 @@
 
 Newest first. Each release's notes on GitHub are taken from the matching section here.
 
+## 1.3.1
+
+- **Update progress bar.** Settings → About shows a bar while a new version downloads, and a purple dot appears next to About.
+- **Restart and update** button at the bottom of the sidebar as soon as an update is ready, so you never have to hunt for it.
+
 ## 1.3.0
 
 - **Updates itself.** When you are online, Convert checks this project's GitHub releases about every six hours, downloads a newer version quietly, checks its checksum, and installs it when nothing is running. No prompts. Turn it off in Settings → General. Settings → About shows the status and has Check now.

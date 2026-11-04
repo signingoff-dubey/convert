@@ -197,3 +197,14 @@ describe('the updater', () => {
     );
   });
 });
+
+import { updateProgress } from '../src/renderer/settings/pages/About';
+
+describe('the update progress bar', () => {
+  it('shows only while downloading, kept between 0 and 100', () => {
+    expect(updateProgress({ state: 'downloading', version: '1.4.0', percent: 40 })).toBe(40);
+    expect(updateProgress({ state: 'downloading', version: '1.4.0', percent: 140 })).toBe(100);
+    expect(updateProgress({ state: 'ready', version: '1.4.0' })).toBeNull();
+    expect(updateProgress({ state: 'idle' })).toBeNull();
+  });
+});

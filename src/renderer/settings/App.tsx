@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Button, Dialog, Switch } from '../components/ui';
-import { invoke } from '../shared/api';
+import { invoke, on } from '../shared/api';
 import { useSettings } from '../shared/store';
 import { Onboarding } from './Onboarding';
 import { SavedProvider, usePatch } from './SavedContext';
@@ -65,7 +65,17 @@ function Shell() {
   const [firstRun, setFirstRun] = useState(false);
   const [version, setVersion] = useState('');
   const [confirmReset, setConfirmReset] = useState(false);
+  const [update, setUpdate] = useState<{
+    state: string;
+    version?: string;
+    percent?: number;
+  } | null>(null);
 
+  useEffect(() => {
+    const refresh = () => void invoke('update:status').then(setUpdate);
+    refresh();
+    return on('update:changed', refresh);
+  }, []);
   useEffect(() => {
     void init();
     void invoke('app:meta').then((m) => {
@@ -92,6 +102,13 @@ function Shell() {
                 className={`no-drag flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm ${p.id === page ? 'bg-surface font-medium shadow-sm' : 'text-muted hover:bg-surface/60 hover:text-ink'}`}
               >
                 <p.icon size={16} /> {p.label}
+                {p.id === 'about' &&
+                  (update?.state === 'ready' || update?.state === 'downloading') && (
+                    <span
+                      aria-label="Update available"
+                      className="ml-auto h-2 w-2 rounded-full bg-accent"
+                    />
+                  )}
               </button>
             </li>
           ))}
@@ -111,6 +128,16 @@ function Shell() {
           >
             Reset all settings
           </button>
+          {update?.state === 'ready' && (
+            <Button variant="primary" onClick={() => void invoke('update:install')}>
+              Restart and update to {update.version}
+            </Button>
+          )}
+          {update?.state === 'downloading' && (
+            <div className="px-1 text-xs text-muted">
+              Downloading update… {update.percent ?? 0}%
+            </div>
+          )}
           <div className="px-1 text-xs text-muted">Version {version}</div>
         </div>
       </nav>

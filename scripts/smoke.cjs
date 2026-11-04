@@ -283,6 +283,32 @@ const windowOf = (app, part) => app.windows().find((w) => w.url().includes(part)
   );
   await app.close();
 
+  // The update progress bar and the "ready" button, with a pretend update (development builds only).
+  for (const demo of ['downloading', 'ready']) {
+    process.env.CONVERT_UPDATE_DEMO = demo;
+    app = await launch(dir, [], (profile) => {
+      const data = join(profile, '.config', 'Convert');
+      mkdirSync(data, { recursive: true });
+      writeFileSync(join(data, 'state.json'), JSON.stringify({ firstRunDone: true, history: [] }));
+    });
+    delete process.env.CONVERT_UPDATE_DEMO;
+    win = windowOf(app, 'settings.html');
+    await win.getByRole('button', { name: /^About/ }).click();
+    await wait(800);
+    if (demo === 'downloading') {
+      const bar = win.getByRole('progressbar', { name: 'Update download' });
+      check('the update shows a progress bar', (await bar.getAttribute('aria-valuenow')) === '42');
+    } else {
+      check(
+        'a ready update offers Restart and update in the sidebar and on About',
+        (await win.getByRole('button', { name: /Restart and update/ }).count()) === 2,
+      );
+    }
+    if (process.env.SMOKE_SHOTS)
+      await win.screenshot({ path: join(process.env.SMOKE_SHOTS, `update-${demo}.png`) });
+    await app.close();
+  }
+
   // Recent conversions: a history entry with a picture result shows a thumbnail and can be opened.
   app = await launch(dir, [], (profile) => {
     const data = join(profile, '.config', 'Convert');

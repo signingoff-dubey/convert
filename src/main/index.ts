@@ -148,7 +148,11 @@ async function main(): Promise<void> {
 
   const toastWindow = new ToastWindow(() => settings.get(), registry);
   const toasts = new ToastManager(toastWindow, () => settings.get(), queue);
-  const loader = new CursorLoader(registry, () => settings.get());
+  const loader = new CursorLoader(
+    registry,
+    () => settings.get(),
+    () => queue.isBusy(),
+  );
   queue.on('update', (snap) => loader.update(snap));
   const settingsWindow = new SettingsWindow(registry, () => settings.get(), prefersDark);
   const toolwin = new ToolWindowManager(registry, () => settings.get(), prefersDark);

@@ -254,6 +254,40 @@ const windowOf = (app, part) => app.windows().find((w) => w.url().includes(part)
     /Native heading/.test(picText) && (picText.match(/HELLO/gi) ?? []).length === 2,
     JSON.stringify(picText.slice(0, 120)),
   );
+  // The ring that follows the pointer must go away when the conversion ends.
+  {
+    const { execFileSync } = require('node:child_process');
+    const video = join(dir, 'long.mp4');
+    execFileSync(require('ffmpeg-static'), [
+      '-y',
+      '-loglevel',
+      'error',
+      '-f',
+      'lavfi',
+      '-i',
+      'testsrc=duration=12:size=1280x720:rate=25',
+      '-pix_fmt',
+      'yuv420p',
+      video,
+    ]);
+    const ringShown = (a) =>
+      a.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows().some(
+          (w) => w.webContents.getURL().includes('loader.html') && w.isVisible(),
+        ),
+      );
+    const a = await launch(dir, ['--hidden', `--dev-job=convert:webm:${video}`]);
+    let seen = false;
+    for (let i = 0; i < 80 && !existsSync(join(dir, 'long.webm')); i++) {
+      if (await ringShown(a)) seen = true;
+      await wait(400);
+    }
+    await wait(3500); // after the result exists, the ring must be gone
+    check('the progress ring shows during a long conversion', seen);
+    check('the progress ring is gone after the conversion ends', !(await ringShown(a)));
+    await a.close();
+  }
+
   // Explorer's Send to menu runs `Convert.exe --convert <format> <files>`.
   writeFileSync(join(dir, 'sendto.png'), await sharp(Buffer.from(svg)).png().toBuffer());
   app = await launch(dir, ['--hidden', '--convert', 'webp', join(dir, 'sendto.png')]);

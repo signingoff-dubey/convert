@@ -28,6 +28,11 @@ export class ProgressTracker {
     return state;
   }
 
+  /** Forgets every job, for when nothing is really running any more. */
+  reset(): void {
+    this.jobs.clear();
+  }
+
   state(): Progress {
     const all = [...this.jobs.values()];
     const live = all.filter((j) => j.status === 'queued' || j.status === 'running');

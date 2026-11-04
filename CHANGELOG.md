@@ -2,6 +2,10 @@
 
 Newest first. Each release's notes on GitHub are taken from the matching section here.
 
+## 1.3.3
+
+- **Fixed: the progress ring stuck to the pointer after a conversion finished.** It could happen when a job ended while the ring was still being set up, which is likely for a conversion of about a second on the first use. The ring now always goes away, and it also hides itself if nothing is running.
+
 ## 1.3.2
 
 - **Wheel labels fit.** Long names now wrap onto two lines instead of running outside their wedge, and picture-to-text shows as just **TXT**.
